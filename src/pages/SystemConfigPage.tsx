@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Title, Text, Button, Group, Stack, Card, TextInput,
-  Box, Tabs, Loader, Center, ActionIcon, Modal, SimpleGrid,
+  Box, Tabs, Loader, Center, ActionIcon, Modal, SimpleGrid, Avatar,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconPlus, IconTrash, IconEdit, IconDeviceFloppy } from '@tabler/icons-react';
@@ -9,6 +9,8 @@ import { systemConfigApi } from '@/api/systemConfigApi';
 import { defaultCategoryApi } from '@/api/defaultCategoryApi';
 import { globalTeamApi } from '@/api/globalTeamApi';
 import { notifications } from '@mantine/notifications';
+import { ImageUploadInput } from '@/components/ui/ImageUploadInput';
+import { getImageUrl } from '@/utils/imageUrl';
 import type { SystemConfig, DefaultCategory, GlobalTeam } from '@/types/api.types';
 
 export function SystemConfigPage() {
@@ -143,15 +145,16 @@ export function SystemConfigPage() {
 
       <Tabs defaultValue="general">
         <Tabs.List mb="md">
-          <Tabs.Tab value="general">General</Tabs.Tab>          <Tabs.Tab value="categories">Categorías por defecto</Tabs.Tab>
+          <Tabs.Tab value="general">General</Tabs.Tab>
+          <Tabs.Tab value="categories">Categorías por defecto</Tabs.Tab>
           <Tabs.Tab value="teams">Equipos del sistema</Tabs.Tab>
         </Tabs.List>
 
         {/* General */}
         <Tabs.Panel value="general">
           <Card withBorder radius="md" p="xl">
-            <Stack>
-              <Text fw={500} mb="xs">Apariencia del panel de administración</Text>
+            <Stack gap="md">
+              <Text fw={500}>Apariencia del panel de administración</Text>
               <TextInput
                 label="Título del navbar"
                 value={configForm.navbarTitle ?? ''}
@@ -159,6 +162,11 @@ export function SystemConfigPage() {
                   const val = e.currentTarget.value;
                   setConfigForm(f => ({ ...f, navbarTitle: val }));
                 }}
+              />
+              <ImageUploadInput
+                label="Logo del Navbar"
+                value={configForm.navbarImagePath}
+                onChange={path => setConfigForm(f => ({ ...f, navbarImagePath: path }))}
               />
               <TextInput
                 label="Nombre de la pestaña (panel admin)"
@@ -168,16 +176,13 @@ export function SystemConfigPage() {
                   setConfigForm(f => ({ ...f, adminTabName: val }));
                 }}
               />
-              <TextInput
-                label="Favicon del panel admin (URL o path)"
-                value={configForm.adminFaviconPath ?? ''}
-                onChange={e => {
-                  const val = e.currentTarget.value;
-                  setConfigForm(f => ({ ...f, adminFaviconPath: val }));
-                }}
+              <ImageUploadInput
+                label="Favicon del panel admin"
+                value={configForm.adminFaviconPath}
+                onChange={path => setConfigForm(f => ({ ...f, adminFaviconPath: path }))}
               />
 
-              <Text fw={500} mt="md" mb="xs">Vista pública del sorteo</Text>
+              <Text fw={500} mt="md">Vista pública del sorteo</Text>
               <TextInput
                 label="Título de la página pública"
                 value={configForm.publicTitle ?? ''}
@@ -185,6 +190,11 @@ export function SystemConfigPage() {
                   const val = e.currentTarget.value;
                   setConfigForm(f => ({ ...f, publicTitle: val }));
                 }}
+              />
+              <ImageUploadInput
+                label="Banner / Imagen de la vista pública"
+                value={configForm.publicImagePath}
+                onChange={path => setConfigForm(f => ({ ...f, publicImagePath: path }))}
               />
               <TextInput
                 label="Nombre de la pestaña (vista pública)"
@@ -194,16 +204,13 @@ export function SystemConfigPage() {
                   setConfigForm(f => ({ ...f, publicTabName: val }));
                 }}
               />
-              <TextInput
-                label="Favicon de la vista pública (URL o path)"
-                value={configForm.publicFaviconPath ?? ''}
-                onChange={e => {
-                  const val = e.currentTarget.value;
-                  setConfigForm(f => ({ ...f, publicFaviconPath: val }));
-                }}
+              <ImageUploadInput
+                label="Favicon de la vista pública"
+                value={configForm.publicFaviconPath}
+                onChange={path => setConfigForm(f => ({ ...f, publicFaviconPath: path }))}
               />
 
-              <Text fw={500} mt="md" mb="xs">Sorteos</Text>
+              <Text fw={500} mt="md">Sorteos</Text>
               <TextInput
                 label='Prefijo de grupo por defecto (Ej: "Grupo")'
                 value={configForm.defaultGroupPrefix ?? ''}
@@ -283,10 +290,13 @@ export function SystemConfigPage() {
                 {teams.map(team => (
                   <Card key={team.id} withBorder radius="md" p="sm">
                     <Group justify="space-between">
-                      <Box>
-                        <Text fw={500} size="sm">{team.name}</Text>
-                        <Text size="xs" c="dimmed">{team.abbreviation}</Text>
-                      </Box>
+                      <Group gap="sm">
+                        <Avatar src={getImageUrl(team.imagePath)} radius="xl" size="sm" alt={team.name} />
+                        <Box>
+                          <Text fw={500} size="sm">{team.name}</Text>
+                          <Text size="xs" c="dimmed">{team.abbreviation}</Text>
+                        </Box>
+                      </Group>
                       <Group gap={4}>
                         <ActionIcon size="sm" variant="subtle" color="orange"
                           onClick={() => { setEditTeam(team); setTeamForm({ name: team.name, abbreviation: team.abbreviation, imagePath: team.imagePath || '' }); setTeamErrors({}); openTeam(); }}>
@@ -364,14 +374,10 @@ export function SystemConfigPage() {
             }}
             onKeyDown={e => e.key === 'Enter' && void handleSaveTeam()}
           />
-          <TextInput
-            label="URL del Logo / Imagen (opcional)"
+          <ImageUploadInput
+            label="Logo / Escudo del equipo (opcional)"
             value={teamForm.imagePath}
-            onChange={e => {
-              const val = e.currentTarget.value;
-              setTeamForm(f => ({ ...f, imagePath: val }));
-            }}
-            onKeyDown={e => e.key === 'Enter' && void handleSaveTeam()}
+            onChange={path => setTeamForm(f => ({ ...f, imagePath: path || '' }))}
           />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeTeam}>Cancelar</Button>

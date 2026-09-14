@@ -21,6 +21,11 @@ import type {
   Raffle, RaffleTeam, Sport, SportCategory,
   SportCategoryGroup, GlobalTeam, DefaultCategory,
 } from '@/types/api.types';
+import { ImageUploadInput } from '@/components/ui/ImageUploadInput';
+import { getImageUrl } from '@/utils/imageUrl';
+import { Avatar } from '@mantine/core';
+
+
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   pending: { label: 'Sin iniciar', color: 'gray' },
@@ -147,10 +152,13 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
           {teams.map(team => (
             <Card key={team.id} withBorder radius="md" p="sm">
               <Group justify="space-between">
-                <Box>
-                  <Text fw={500} size="sm">{team.name}</Text>
-                  <Text size="xs" c="dimmed">{team.abbreviation}</Text>
-                </Box>
+                <Group gap="sm">
+                  <Avatar src={getImageUrl(team.imagePath)} radius="xl" size="sm" alt={team.name} />
+                  <Box>
+                    <Text fw={500} size="sm">{team.name}</Text>
+                    <Text size="xs" c="dimmed">{team.abbreviation}</Text>
+                  </Box>
+                </Group>
                 <Group gap={4}>
                   <ActionIcon size="sm" variant="subtle" color="orange" onClick={() => { setEditTarget(team); setForm({ name: team.name, abbreviation: team.abbreviation, imagePath: team.imagePath || '' }); setErrors({}); openAdd(); }}>
                     <IconEdit size={14} />
@@ -222,15 +230,10 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
             }}
             onKeyDown={e => e.key === 'Enter' && void handleSave()}
           />
-          <TextInput
-            label="URL del Logo / Imagen (opcional)"
-            placeholder="Ej: https://ejemplo.com/logo.png"
+          <ImageUploadInput
+            label="Logo / Escudo del equipo (opcional)"
             value={form.imagePath}
-            onChange={e => {
-              const val = e.currentTarget.value;
-              setForm(f => ({ ...f, imagePath: val }));
-            }}
-            onKeyDown={e => e.key === 'Enter' && void handleSave()}
+            onChange={path => setForm(f => ({ ...f, imagePath: path || '' }))}
           />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeAdd}>Cancelar</Button>
