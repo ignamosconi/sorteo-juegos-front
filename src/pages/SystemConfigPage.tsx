@@ -1,0 +1,290 @@
+import { useEffect, useState } from 'react';
+import {
+  Title, Text, Button, Group, Stack, Card, TextInput,
+  Box, Tabs, Loader, Center, ActionIcon, Modal, SimpleGrid,
+} from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+import { IconPlus, IconTrash, IconEdit, IconDeviceFloppy } from '@tabler/icons-react';
+import { systemConfigApi } from '@/api/systemConfigApi';
+import { defaultCategoryApi } from '@/api/defaultCategoryApi';
+import { globalTeamApi } from '@/api/globalTeamApi';
+import { notifications } from '@mantine/notifications';
+import type { SystemConfig, DefaultCategory, GlobalTeam } from '@/types/api.types';
+
+export function SystemConfigPage() {
+  const [config, setConfig] = useState<SystemConfig | null>(null);
+  const [configForm, setConfigForm] = useState<Partial<SystemConfig>>({});
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Categories
+  const [categories, setCategories] = useState<DefaultCategory[]>([]);
+  const [catForm, setCatForm] = useState({ name: '' });
+  const [editCat, setEditCat] = useState<DefaultCategory | null>(null);
+  const [deleteCat, setDeleteCat] = useState<DefaultCategory | null>(null);
+  const [catOpened, { open: openCat, close: closeCat }] = useDisclosure(false);
+  const [deleteCatOpened, { open: openDeleteCat, close: closeDeleteCat }] = useDisclosure(false);
+
+  // Global teams
+  const [teams, setTeams] = useState<GlobalTeam[]>([]);
+  const [teamForm, setTeamForm] = useState({ name: '', abbreviation: '' });
+  const [editTeam, setEditTeam] = useState<GlobalTeam | null>(null);
+  const [deleteTeam, setDeleteTeam] = useState<GlobalTeam | null>(null);
+  const [teamOpened, { open: openTeam, close: closeTeam }] = useDisclosure(false);
+  const [deleteTeamOpened, { open: openDeleteTeam, close: closeDeleteTeam }] = useDisclosure(false);
+
+  useEffect(() => {
+    Promise.all([
+      systemConfigApi.get(),
+      defaultCategoryApi.getAll(),
+      globalTeamApi.getAll(),
+    ]).then(([cfg, cats, ts]) => {
+      setConfig(cfg);
+      setConfigForm(cfg);
+      setCategories(cats);
+      setTeams(ts);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const handleSaveConfig = async () => {
+    setSaving(true);
+    try {
+      const updated = await systemConfigApi.update(configForm);
+      setConfig(updated);
+      notifications.show({ message: 'Configuración guardada', color: 'green' });
+    } catch {
+      notifications.show({ message: 'Error al guardar', color: 'red' });
+    } finally { setSaving(false); }
+  };
+
+  const handleSaveCat = async () => {
+    if (!catForm.name.trim()) return;
+    setSaving(true);
+    try {
+      if (editCat) {
+        const updated = await defaultCategoryApi.update(editCat.id, { name: catForm.name });
+        setCategories(prev => prev.map(c => c.id === editCat.id ? updated : c));
+      } else {
+        const created = await defaultCategoryApi.create({ name: catForm.name, order: categories.length });
+        setCategories(prev => [...prev, created]);
+      }
+      closeCat();
+      setCatForm({ name: '' });
+      setEditCat(null);
+    } catch {
+      notifications.show({ message: 'Error al guardar categoría', color: 'red' });
+    } finally { setSaving(false); }
+  };
+
+  const handleDeleteCat = async () => {
+    if (!deleteCat) return;
+    setSaving(true);
+    try {
+      await defaultCategoryApi.delete(deleteCat.id);
+      setCategories(prev => prev.filter(c => c.id !== deleteCat.id));
+      closeDeleteCat();
+    } catch {
+      notifications.show({ message: 'Error al eliminar', color: 'red' });
+    } finally { setSaving(false); }
+  };
+
+  const handleSaveTeam = async () => {
+    if (!teamForm.name.trim() || !teamForm.abbreviation.trim()) return;
+    setSaving(true);
+    try {
+      if (editTeam) {
+        const updated = await globalTeamApi.update(editTeam.id, teamForm);
+        setTeams(prev => prev.map(t => t.id === editTeam.id ? updated : t));
+      } else {
+        const created = await globalTeamApi.create(teamForm);
+        setTeams(prev => [...prev, created]);
+      }
+      closeTeam();
+      setTeamForm({ name: '', abbreviation: '' });
+      setEditTeam(null);
+    } catch {
+      notifications.show({ message: 'Error al guardar equipo', color: 'red' });
+    } finally { setSaving(false); }
+  };
+
+  const handleDeleteTeam = async () => {
+    if (!deleteTeam) return;
+    setSaving(true);
+    try {
+      await globalTeamApi.delete(deleteTeam.id);
+      setTeams(prev => prev.filter(t => t.id !== deleteTeam.id));
+      closeDeleteTeam();
+    } catch {
+      notifications.show({ message: 'Error al eliminar', color: 'red' });
+    } finally { setSaving(false); }
+  };
+
+  if (loading) return <Center py="xl"><Loader color="orange" /></Center>;
+
+  return (
+    <Box p="md">
+      <Title order={2} mb="xs">Configuración del Sistema</Title>
+      <Text c="dimmed" size="sm" mb="xl">Ajustes globales de la aplicación</Text>
+
+      <Tabs defaultValue="general">
+        <Tabs.List mb="md">
+          <Tabs.Tab value="general">General</Tabs.Tab>
+          <Tabs.Tab value="categories">Categorías por defecto</Tabs.Tab>
+          <Tabs.Tab value="teams">Equipos del sistema</Tabs.Tab>
+        </Tabs.List>
+
+        {/* General */}
+        <Tabs.Panel value="general">
+          <Card withBorder radius="md" p="xl">
+            <Stack>
+              <Text fw={500} mb="xs">Apariencia del panel de administración</Text>
+              <TextInput label="Título del navbar" value={configForm.navbarTitle ?? ''} onChange={e => setConfigForm(f => ({ ...f, navbarTitle: e.currentTarget.value }))} />
+              <TextInput label="Nombre de la pestaña (panel admin)" value={configForm.adminTabName ?? ''} onChange={e => setConfigForm(f => ({ ...f, adminTabName: e.currentTarget.value }))} />
+              <TextInput label="Favicon del panel admin (URL o path)" value={configForm.adminFaviconPath ?? ''} onChange={e => setConfigForm(f => ({ ...f, adminFaviconPath: e.currentTarget.value }))} />
+
+              <Text fw={500} mt="md" mb="xs">Vista pública del sorteo</Text>
+              <TextInput label="Título de la página pública" value={configForm.publicTitle ?? ''} onChange={e => setConfigForm(f => ({ ...f, publicTitle: e.currentTarget.value }))} />
+              <TextInput label="Nombre de la pestaña (vista pública)" value={configForm.publicTabName ?? ''} onChange={e => setConfigForm(f => ({ ...f, publicTabName: e.currentTarget.value }))} />
+              <TextInput label="Favicon de la vista pública (URL o path)" value={configForm.publicFaviconPath ?? ''} onChange={e => setConfigForm(f => ({ ...f, publicFaviconPath: e.currentTarget.value }))} />
+
+              <Text fw={500} mt="md" mb="xs">Sorteos</Text>
+              <TextInput label='Prefijo de grupo por defecto (Ej: "Grupo")' value={configForm.defaultGroupPrefix ?? ''} onChange={e => setConfigForm(f => ({ ...f, defaultGroupPrefix: e.currentTarget.value }))} />
+
+              <Group justify="flex-end" mt="md">
+                <Button color="orange" leftSection={<IconDeviceFloppy size={16} />} loading={saving} onClick={() => void handleSaveConfig()}>
+                  Guardar cambios
+                </Button>
+              </Group>
+            </Stack>
+          </Card>
+        </Tabs.Panel>
+
+        {/* Categories */}
+        <Tabs.Panel value="categories">
+          <Card withBorder radius="md" p="xl">
+            <Group justify="space-between" mb="md">
+              <Box>
+                <Text fw={500}>Categorías por defecto</Text>
+                <Text size="sm" c="dimmed">Estas categorías se ofrecen como atajos al configurar deportes en un sorteo.</Text>
+              </Box>
+              <Button size="sm" leftSection={<IconPlus size={14} />} color="orange"
+                onClick={() => { setEditCat(null); setCatForm({ name: '' }); openCat(); }}>
+                Agregar
+              </Button>
+            </Group>
+
+            {categories.length === 0 ? (
+              <Text c="dimmed" size="sm">No hay categorías definidas.</Text>
+            ) : (
+              <Stack gap="xs">
+                {categories.map(cat => (
+                  <Card key={cat.id} withBorder radius="md" p="sm">
+                    <Group justify="space-between">
+                      <Text size="sm">{cat.name}</Text>
+                      <Group gap={4}>
+                        <ActionIcon size="sm" variant="subtle" color="orange"
+                          onClick={() => { setEditCat(cat); setCatForm({ name: cat.name }); openCat(); }}>
+                          <IconEdit size={14} />
+                        </ActionIcon>
+                        <ActionIcon size="sm" variant="subtle" color="red"
+                          onClick={() => { setDeleteCat(cat); openDeleteCat(); }}>
+                          <IconTrash size={14} />
+                        </ActionIcon>
+                      </Group>
+                    </Group>
+                  </Card>
+                ))}
+              </Stack>
+            )}
+          </Card>
+        </Tabs.Panel>
+
+        {/* Global teams */}
+        <Tabs.Panel value="teams">
+          <Card withBorder radius="md" p="xl">
+            <Group justify="space-between" mb="md">
+              <Box>
+                <Text fw={500}>Equipos del sistema</Text>
+                <Text size="sm" c="dimmed">Pool de equipos reutilizables que podés importar en cualquier sorteo.</Text>
+              </Box>
+              <Button size="sm" leftSection={<IconPlus size={14} />} color="orange"
+                onClick={() => { setEditTeam(null); setTeamForm({ name: '', abbreviation: '' }); openTeam(); }}>
+                Agregar
+              </Button>
+            </Group>
+
+            {teams.length === 0 ? (
+              <Text c="dimmed" size="sm">No hay equipos cargados en el sistema.</Text>
+            ) : (
+              <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
+                {teams.map(team => (
+                  <Card key={team.id} withBorder radius="md" p="sm">
+                    <Group justify="space-between">
+                      <Box>
+                        <Text fw={500} size="sm">{team.name}</Text>
+                        <Text size="xs" c="dimmed">{team.abbreviation}</Text>
+                      </Box>
+                      <Group gap={4}>
+                        <ActionIcon size="sm" variant="subtle" color="orange"
+                          onClick={() => { setEditTeam(team); setTeamForm({ name: team.name, abbreviation: team.abbreviation }); openTeam(); }}>
+                          <IconEdit size={14} />
+                        </ActionIcon>
+                        <ActionIcon size="sm" variant="subtle" color="red"
+                          onClick={() => { setDeleteTeam(team); openDeleteTeam(); }}>
+                          <IconTrash size={14} />
+                        </ActionIcon>
+                      </Group>
+                    </Group>
+                  </Card>
+                ))}
+              </SimpleGrid>
+            )}
+          </Card>
+        </Tabs.Panel>
+      </Tabs>
+
+      {/* Category modals */}
+      <Modal opened={catOpened} onClose={closeCat} title={editCat ? 'Editar categoría' : 'Nueva categoría'} centered>
+        <Stack>
+          <TextInput label="Nombre" value={catForm.name} onChange={e => setCatForm({ name: e.currentTarget.value })} autoFocus />
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={closeCat}>Cancelar</Button>
+            <Button color="orange" loading={saving} onClick={() => void handleSaveCat()}>Guardar</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal opened={deleteCatOpened} onClose={closeDeleteCat} title="Eliminar categoría" centered>
+        <Stack>
+          <Text>¿Eliminar la categoría <strong>{deleteCat?.name}</strong>?</Text>
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={closeDeleteCat}>Cancelar</Button>
+            <Button color="red" loading={saving} onClick={() => void handleDeleteCat()}>Eliminar</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Team modals */}
+      <Modal opened={teamOpened} onClose={closeTeam} title={editTeam ? 'Editar equipo' : 'Nuevo equipo'} centered>
+        <Stack>
+          <TextInput label="Nombre completo" value={teamForm.name} onChange={e => setTeamForm(f => ({ ...f, name: e.currentTarget.value }))} />
+          <TextInput label="Abreviación" value={teamForm.abbreviation} onChange={e => setTeamForm(f => ({ ...f, abbreviation: e.currentTarget.value }))} />
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={closeTeam}>Cancelar</Button>
+            <Button color="orange" loading={saving} onClick={() => void handleSaveTeam()}>Guardar</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal opened={deleteTeamOpened} onClose={closeDeleteTeam} title="Eliminar equipo" centered>
+        <Stack>
+          <Text>¿Eliminar el equipo <strong>{deleteTeam?.name}</strong> del sistema?</Text>
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={closeDeleteTeam}>Cancelar</Button>
+            <Button color="red" loading={saving} onClick={() => void handleDeleteTeam()}>Eliminar</Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </Box>
+  );
+}
