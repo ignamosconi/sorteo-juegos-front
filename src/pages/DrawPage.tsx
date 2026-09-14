@@ -98,7 +98,7 @@ export function DrawPage() {
   const [loading, setLoading] = useState(true);
   const [spinning, setSpinning] = useState(false);
   const [drawnTeam, setDrawnTeam] = useState<RaffleTeam | null>(null);
-  const [drawnGroup, setDrawnGroup] = useState<SportCategoryGroup | null>(null);
+  const [, setDrawnGroup] = useState<SportCategoryGroup | null>(null);
   const [phase, setPhase] = useState<'select_sport' | 'select_category' | 'draw_team' | 'draw_group' | 'done'>('select_sport');
   const [selectedSport, setSelectedSport] = useState<Sport | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<SportCategory | null>(null);

@@ -192,8 +192,24 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
       {/* Add/Edit modal */}
       <Modal opened={addOpened} onClose={closeAdd} title={editTarget ? 'Editar equipo' : 'Agregar equipo'} centered>
         <Stack>
-          <TextInput label="Nombre completo" placeholder="Ej: UTN Facultad Regional Villa María" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.currentTarget.value }))} />
-          <TextInput label="Abreviación" placeholder="Ej: UTNFRVM" value={form.abbreviation} onChange={e => setForm(f => ({ ...f, abbreviation: e.currentTarget.value }))} />
+          <TextInput
+            label="Nombre completo"
+            placeholder="Ej: UTN Facultad Regional Villa María"
+            value={form.name}
+            onChange={e => {
+              const val = e.currentTarget.value;
+              setForm(f => ({ ...f, name: val }));
+            }}
+          />
+          <TextInput
+            label="Abreviación"
+            placeholder="Ej: UTNFRVM"
+            value={form.abbreviation}
+            onChange={e => {
+              const val = e.currentTarget.value;
+              setForm(f => ({ ...f, abbreviation: val }));
+            }}
+          />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeAdd}>Cancelar</Button>
             <Button color="orange" loading={saving} onClick={() => void handleSave()}>Guardar</Button>
@@ -309,8 +325,24 @@ function SportsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
 
       <Modal opened={addOpened} onClose={closeAdd} title={editTarget ? 'Editar deporte' : 'Agregar deporte'} centered>
         <Stack>
-          <TextInput label="Nombre completo" placeholder="Ej: Fútbol" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.currentTarget.value }))} />
-          <TextInput label="Abreviación" placeholder="Ej: FUT" value={form.abbreviation} onChange={e => setForm(f => ({ ...f, abbreviation: e.currentTarget.value }))} />
+          <TextInput
+            label="Nombre completo"
+            placeholder="Ej: Fútbol"
+            value={form.name}
+            onChange={e => {
+              const val = e.currentTarget.value;
+              setForm(f => ({ ...f, name: val }));
+            }}
+          />
+          <TextInput
+            label="Abreviación"
+            placeholder="Ej: FUT"
+            value={form.abbreviation}
+            onChange={e => {
+              const val = e.currentTarget.value;
+              setForm(f => ({ ...f, abbreviation: val }));
+            }}
+          />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeAdd}>Cancelar</Button>
             <Button color="orange" loading={saving} onClick={() => void handleSave()}>Guardar</Button>
@@ -503,7 +535,10 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
             label="Nombre de la categoría"
             placeholder="Ej: Masculino"
             value={catForm.name}
-            onChange={e => setCatForm({ name: e.currentTarget.value })}
+            onChange={e => {
+              const val = e.currentTarget.value;
+              setCatForm({ name: val });
+            }}
           />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeCatModal}>Cancelar</Button>
@@ -535,7 +570,10 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
                   key={i}
                   label={`Nombre del grupo ${i + 1}`}
                   value={groupNames[i] ?? ''}
-                  onChange={e => setGroupNames(prev => { const n = [...prev]; n[i] = e.currentTarget.value; return n; })}
+                  onChange={e => {
+                    const val = e.currentTarget.value;
+                    setGroupNames(prev => { const n = [...prev]; n[i] = val; return n; });
+                  }}
                 />
               ))}
             </Stack>

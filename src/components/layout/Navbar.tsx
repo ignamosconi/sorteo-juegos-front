@@ -104,7 +104,7 @@ function NavSection({ label, icon: Icon, isOpen, children, defaultOpen = false }
           <IconChevronRight size={12} style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 200ms' }} />
         </Group>
       </UnstyledButton>
-      <Collapse in={expanded}>
+      <Collapse {...({ in: expanded } as any)}>
         <Box pl={isOpen ? 'xs' : 0}>
           {children}
         </Box>

@@ -12,7 +12,7 @@ import { notifications } from '@mantine/notifications';
 import type { SystemConfig, DefaultCategory, GlobalTeam } from '@/types/api.types';
 
 export function SystemConfigPage() {
-  const [config, setConfig] = useState<SystemConfig | null>(null);
+  const [, setConfig] = useState<SystemConfig | null>(null);
   const [configForm, setConfigForm] = useState<Partial<SystemConfig>>({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -138,17 +138,66 @@ export function SystemConfigPage() {
           <Card withBorder radius="md" p="xl">
             <Stack>
               <Text fw={500} mb="xs">Apariencia del panel de administración</Text>
-              <TextInput label="Título del navbar" value={configForm.navbarTitle ?? ''} onChange={e => setConfigForm(f => ({ ...f, navbarTitle: e.currentTarget.value }))} />
-              <TextInput label="Nombre de la pestaña (panel admin)" value={configForm.adminTabName ?? ''} onChange={e => setConfigForm(f => ({ ...f, adminTabName: e.currentTarget.value }))} />
-              <TextInput label="Favicon del panel admin (URL o path)" value={configForm.adminFaviconPath ?? ''} onChange={e => setConfigForm(f => ({ ...f, adminFaviconPath: e.currentTarget.value }))} />
+              <TextInput
+                label="Título del navbar"
+                value={configForm.navbarTitle ?? ''}
+                onChange={e => {
+                  const val = e.currentTarget.value;
+                  setConfigForm(f => ({ ...f, navbarTitle: val }));
+                }}
+              />
+              <TextInput
+                label="Nombre de la pestaña (panel admin)"
+                value={configForm.adminTabName ?? ''}
+                onChange={e => {
+                  const val = e.currentTarget.value;
+                  setConfigForm(f => ({ ...f, adminTabName: val }));
+                }}
+              />
+              <TextInput
+                label="Favicon del panel admin (URL o path)"
+                value={configForm.adminFaviconPath ?? ''}
+                onChange={e => {
+                  const val = e.currentTarget.value;
+                  setConfigForm(f => ({ ...f, adminFaviconPath: val }));
+                }}
+              />
 
               <Text fw={500} mt="md" mb="xs">Vista pública del sorteo</Text>
-              <TextInput label="Título de la página pública" value={configForm.publicTitle ?? ''} onChange={e => setConfigForm(f => ({ ...f, publicTitle: e.currentTarget.value }))} />
-              <TextInput label="Nombre de la pestaña (vista pública)" value={configForm.publicTabName ?? ''} onChange={e => setConfigForm(f => ({ ...f, publicTabName: e.currentTarget.value }))} />
-              <TextInput label="Favicon de la vista pública (URL o path)" value={configForm.publicFaviconPath ?? ''} onChange={e => setConfigForm(f => ({ ...f, publicFaviconPath: e.currentTarget.value }))} />
+              <TextInput
+                label="Título de la página pública"
+                value={configForm.publicTitle ?? ''}
+                onChange={e => {
+                  const val = e.currentTarget.value;
+                  setConfigForm(f => ({ ...f, publicTitle: val }));
+                }}
+              />
+              <TextInput
+                label="Nombre de la pestaña (vista pública)"
+                value={configForm.publicTabName ?? ''}
+                onChange={e => {
+                  const val = e.currentTarget.value;
+                  setConfigForm(f => ({ ...f, publicTabName: val }));
+                }}
+              />
+              <TextInput
+                label="Favicon de la vista pública (URL o path)"
+                value={configForm.publicFaviconPath ?? ''}
+                onChange={e => {
+                  const val = e.currentTarget.value;
+                  setConfigForm(f => ({ ...f, publicFaviconPath: val }));
+                }}
+              />
 
               <Text fw={500} mt="md" mb="xs">Sorteos</Text>
-              <TextInput label='Prefijo de grupo por defecto (Ej: "Grupo")' value={configForm.defaultGroupPrefix ?? ''} onChange={e => setConfigForm(f => ({ ...f, defaultGroupPrefix: e.currentTarget.value }))} />
+              <TextInput
+                label='Prefijo de grupo por defecto (Ej: "Grupo")'
+                value={configForm.defaultGroupPrefix ?? ''}
+                onChange={e => {
+                  const val = e.currentTarget.value;
+                  setConfigForm(f => ({ ...f, defaultGroupPrefix: val }));
+                }}
+              />
 
               <Group justify="flex-end" mt="md">
                 <Button color="orange" leftSection={<IconDeviceFloppy size={16} />} loading={saving} onClick={() => void handleSaveConfig()}>
@@ -246,7 +295,15 @@ export function SystemConfigPage() {
       {/* Category modals */}
       <Modal opened={catOpened} onClose={closeCat} title={editCat ? 'Editar categoría' : 'Nueva categoría'} centered>
         <Stack>
-          <TextInput label="Nombre" value={catForm.name} onChange={e => setCatForm({ name: e.currentTarget.value })} autoFocus />
+          <TextInput
+            label="Nombre"
+            value={catForm.name}
+            onChange={e => {
+              const val = e.currentTarget.value;
+              setCatForm({ name: val });
+            }}
+            autoFocus
+          />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeCat}>Cancelar</Button>
             <Button color="orange" loading={saving} onClick={() => void handleSaveCat()}>Guardar</Button>
@@ -267,8 +324,22 @@ export function SystemConfigPage() {
       {/* Team modals */}
       <Modal opened={teamOpened} onClose={closeTeam} title={editTeam ? 'Editar equipo' : 'Nuevo equipo'} centered>
         <Stack>
-          <TextInput label="Nombre completo" value={teamForm.name} onChange={e => setTeamForm(f => ({ ...f, name: e.currentTarget.value }))} />
-          <TextInput label="Abreviación" value={teamForm.abbreviation} onChange={e => setTeamForm(f => ({ ...f, abbreviation: e.currentTarget.value }))} />
+          <TextInput
+            label="Nombre completo"
+            value={teamForm.name}
+            onChange={e => {
+              const val = e.currentTarget.value;
+              setTeamForm(f => ({ ...f, name: val }));
+            }}
+          />
+          <TextInput
+            label="Abreviación"
+            value={teamForm.abbreviation}
+            onChange={e => {
+              const val = e.currentTarget.value;
+              setTeamForm(f => ({ ...f, abbreviation: val }));
+            }}
+          />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeTeam}>Cancelar</Button>
             <Button color="orange" loading={saving} onClick={() => void handleSaveTeam()}>Guardar</Button>
