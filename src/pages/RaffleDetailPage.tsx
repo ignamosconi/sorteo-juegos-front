@@ -756,9 +756,9 @@ export function RaffleDetailPage() {
       {isEditable && !wizardDone ? (
         <Card withBorder radius="md" p="xl">
           <Stepper active={activeStep} color="orange" mb="xl">
-            <Stepper.Step label="Equipos" icon={<IconUsers size={16} />} description="Cargá los equipos" />
-            <Stepper.Step label="Deportes" icon={<IconRun size={16} />} description="Definí los deportes" />
-            <Stepper.Step label="Grupos" icon={<IconCategory size={16} />} description="Configurá los grupos" />
+            <Stepper.Step label="Equipos" icon={<IconUsers size={16} />} description="que participan" />
+            <Stepper.Step label="Deportes" icon={<IconRun size={16} />} description="en los que compiten" />
+            <Stepper.Step label="Grupos" icon={<IconCategory size={16} />} description="y categorías" />
           </Stepper>
 
           {activeStep === 0 && (
