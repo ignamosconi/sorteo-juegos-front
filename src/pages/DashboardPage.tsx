@@ -25,7 +25,12 @@ export function DashboardPage() {
   const [opened, { open, close }] = useDisclosure(false);
 
   useEffect(() => {
-    raffleApi.getAll({ sortByDate: true }).then(setRaffles).finally(() => setLoading(false));
+    raffleApi.getAll({ sortByDate: true }).then(data => {
+      const sorted = [...data].sort((a, b) =>
+        new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
+      );
+      setRaffles(sorted);
+    }).finally(() => setLoading(false));
   }, []);
 
   const handleCreate = async () => {
@@ -56,9 +61,6 @@ export function DashboardPage() {
           <Title order={2}>Dashboard</Title>
           <Text c="dimmed" size="sm">Bienvenido al panel de administración</Text>
         </Box>
-        <Button leftSection={<IconPlus size={16} />} color="orange" onClick={open}>
-          Nuevo sorteo
-        </Button>
       </Group>
 
       <SimpleGrid cols={{ base: 1, sm: 3 }} mb="xl">
@@ -122,7 +124,7 @@ export function DashboardPage() {
                 </Badge>
               </Group>
               <Text size="xs" c="dimmed" mt={4}>
-                {new Date(raffle.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                {new Date(raffle.updatedAt || raffle.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
               </Text>
             </Card>
           ))}

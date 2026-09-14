@@ -5,7 +5,6 @@ import type {
   SportCategoryGroup,
   SportCategoryTeam,
   CreateGroupItem,
-  BulkCreateGroupsPayload,
   AssignTeamPayload,
 } from '@/types/api.types';
 
@@ -34,7 +33,7 @@ export const sportApi = {
       params: categoryId !== undefined ? { categoryId } : undefined,
     }).then(r => r.data),
   createGroups: (sportId: string, groups: CreateGroupItem[], categoryId?: string | null) =>
-    apiClient.post<SportCategoryGroup[]>(`/sports/${sportId}/groups`, { groups } as BulkCreateGroupsPayload, {
+    apiClient.post<SportCategoryGroup[]>(`/sports/${sportId}/groups`, groups, {
       params: categoryId ? { categoryId } : undefined,
     }).then(r => r.data),
   updateGroup: (id: string, data: Partial<{ name: string; capacity: number; sortOrder: number }>) =>

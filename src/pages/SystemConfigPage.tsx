@@ -20,6 +20,7 @@ export function SystemConfigPage() {
   // Categories
   const [categories, setCategories] = useState<DefaultCategory[]>([]);
   const [catForm, setCatForm] = useState({ name: '' });
+  const [catError, setCatError] = useState<string | undefined>(undefined);
   const [editCat, setEditCat] = useState<DefaultCategory | null>(null);
   const [deleteCat, setDeleteCat] = useState<DefaultCategory | null>(null);
   const [catOpened, { open: openCat, close: closeCat }] = useDisclosure(false);
@@ -27,7 +28,8 @@ export function SystemConfigPage() {
 
   // Global teams
   const [teams, setTeams] = useState<GlobalTeam[]>([]);
-  const [teamForm, setTeamForm] = useState({ name: '', abbreviation: '' });
+  const [teamForm, setTeamForm] = useState({ name: '', abbreviation: '', imagePath: '' });
+  const [teamErrors, setTeamErrors] = useState<{ name?: string; abbreviation?: string }>({});
   const [editTeam, setEditTeam] = useState<GlobalTeam | null>(null);
   const [deleteTeam, setDeleteTeam] = useState<GlobalTeam | null>(null);
   const [teamOpened, { open: openTeam, close: closeTeam }] = useDisclosure(false);
@@ -58,7 +60,11 @@ export function SystemConfigPage() {
   };
 
   const handleSaveCat = async () => {
-    if (!catForm.name.trim()) return;
+    if (!catForm.name.trim()) {
+      setCatError('El nombre de la categoría es obligatorio');
+      return;
+    }
+    setCatError(undefined);
     setSaving(true);
     try {
       if (editCat) {
@@ -89,7 +95,16 @@ export function SystemConfigPage() {
   };
 
   const handleSaveTeam = async () => {
-    if (!teamForm.name.trim() || !teamForm.abbreviation.trim()) return;
+    const errors: { name?: string; abbreviation?: string } = {};
+    if (!teamForm.name.trim()) errors.name = 'El nombre es obligatorio';
+    if (!teamForm.abbreviation.trim()) errors.abbreviation = 'La abreviación es obligatoria';
+
+    if (Object.keys(errors).length > 0) {
+      setTeamErrors(errors);
+      return;
+    }
+
+    setTeamErrors({});
     setSaving(true);
     try {
       if (editTeam) {
@@ -100,7 +115,7 @@ export function SystemConfigPage() {
         setTeams(prev => [...prev, created]);
       }
       closeTeam();
-      setTeamForm({ name: '', abbreviation: '' });
+      setTeamForm({ name: '', abbreviation: '', imagePath: '' });
       setEditTeam(null);
     } catch {
       notifications.show({ message: 'Error al guardar equipo', color: 'red' });
@@ -128,8 +143,7 @@ export function SystemConfigPage() {
 
       <Tabs defaultValue="general">
         <Tabs.List mb="md">
-          <Tabs.Tab value="general">General</Tabs.Tab>
-          <Tabs.Tab value="categories">Categorías por defecto</Tabs.Tab>
+          <Tabs.Tab value="general">General</Tabs.Tab>          <Tabs.Tab value="categories">Categorías por defecto</Tabs.Tab>
           <Tabs.Tab value="teams">Equipos del sistema</Tabs.Tab>
         </Tabs.List>
 
@@ -217,7 +231,7 @@ export function SystemConfigPage() {
                 <Text size="sm" c="dimmed">Estas categorías se ofrecen como atajos al configurar deportes en un sorteo.</Text>
               </Box>
               <Button size="sm" leftSection={<IconPlus size={14} />} color="orange"
-                onClick={() => { setEditCat(null); setCatForm({ name: '' }); openCat(); }}>
+                onClick={() => { setEditCat(null); setCatForm({ name: '' }); setCatError(undefined); openCat(); }}>
                 Agregar
               </Button>
             </Group>
@@ -232,7 +246,7 @@ export function SystemConfigPage() {
                       <Text size="sm">{cat.name}</Text>
                       <Group gap={4}>
                         <ActionIcon size="sm" variant="subtle" color="orange"
-                          onClick={() => { setEditCat(cat); setCatForm({ name: cat.name }); openCat(); }}>
+                          onClick={() => { setEditCat(cat); setCatForm({ name: cat.name }); setCatError(undefined); openCat(); }}>
                           <IconEdit size={14} />
                         </ActionIcon>
                         <ActionIcon size="sm" variant="subtle" color="red"
@@ -257,7 +271,7 @@ export function SystemConfigPage() {
                 <Text size="sm" c="dimmed">Pool de equipos reutilizables que podés importar en cualquier sorteo.</Text>
               </Box>
               <Button size="sm" leftSection={<IconPlus size={14} />} color="orange"
-                onClick={() => { setEditTeam(null); setTeamForm({ name: '', abbreviation: '' }); openTeam(); }}>
+                onClick={() => { setEditTeam(null); setTeamForm({ name: '', abbreviation: '', imagePath: '' }); setTeamErrors({}); openTeam(); }}>
                 Agregar
               </Button>
             </Group>
@@ -275,7 +289,7 @@ export function SystemConfigPage() {
                       </Box>
                       <Group gap={4}>
                         <ActionIcon size="sm" variant="subtle" color="orange"
-                          onClick={() => { setEditTeam(team); setTeamForm({ name: team.name, abbreviation: team.abbreviation }); openTeam(); }}>
+                          onClick={() => { setEditTeam(team); setTeamForm({ name: team.name, abbreviation: team.abbreviation, imagePath: team.imagePath || '' }); setTeamErrors({}); openTeam(); }}>
                           <IconEdit size={14} />
                         </ActionIcon>
                         <ActionIcon size="sm" variant="subtle" color="red"
@@ -298,10 +312,13 @@ export function SystemConfigPage() {
           <TextInput
             label="Nombre"
             value={catForm.name}
+            error={catError}
             onChange={e => {
               const val = e.currentTarget.value;
               setCatForm({ name: val });
+              if (val.trim()) setCatError(undefined);
             }}
+            onKeyDown={e => e.key === 'Enter' && void handleSaveCat()}
             autoFocus
           />
           <Group justify="flex-end">
@@ -327,18 +344,34 @@ export function SystemConfigPage() {
           <TextInput
             label="Nombre completo"
             value={teamForm.name}
+            error={teamErrors.name}
             onChange={e => {
               const val = e.currentTarget.value;
               setTeamForm(f => ({ ...f, name: val }));
+              if (val.trim()) setTeamErrors(prev => ({ ...prev, name: undefined }));
             }}
+            onKeyDown={e => e.key === 'Enter' && void handleSaveTeam()}
+            autoFocus
           />
           <TextInput
             label="Abreviación"
             value={teamForm.abbreviation}
+            error={teamErrors.abbreviation}
             onChange={e => {
               const val = e.currentTarget.value;
               setTeamForm(f => ({ ...f, abbreviation: val }));
+              if (val.trim()) setTeamErrors(prev => ({ ...prev, abbreviation: undefined }));
             }}
+            onKeyDown={e => e.key === 'Enter' && void handleSaveTeam()}
+          />
+          <TextInput
+            label="URL del Logo / Imagen (opcional)"
+            value={teamForm.imagePath}
+            onChange={e => {
+              const val = e.currentTarget.value;
+              setTeamForm(f => ({ ...f, imagePath: val }));
+            }}
+            onKeyDown={e => e.key === 'Enter' && void handleSaveTeam()}
           />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeTeam}>Cancelar</Button>

@@ -5,7 +5,7 @@ import {
 } from '@mantine/core';
 import {
   IconUser, IconUsers, IconLogout, IconDashboard,
-  IconTrophy, IconList, IconSettings, IconCategory,
+  IconTrophy, IconSettings, IconCategory,
   IconChevronRight, IconTool,
 } from '@tabler/icons-react';
 import { useRef, useState } from 'react';
@@ -70,32 +70,56 @@ interface NavSectionProps {
   label: string;
   icon: React.ElementType;
   isOpen: boolean;
+  onToggleNavbar: () => void;
   children: React.ReactNode;
   defaultOpen?: boolean;
 }
 
-function NavSection({ label, icon: Icon, isOpen, children, defaultOpen = false }: NavSectionProps) {
+function NavSection({ label, icon: Icon, isOpen, onToggleNavbar, children, defaultOpen = false }: NavSectionProps) {
   const [expanded, setExpanded] = useState(defaultOpen);
+
+  const handleClick = () => {
+    if (!isOpen) {
+      onToggleNavbar();
+      setExpanded(true);
+    } else {
+      setExpanded(v => !v);
+    }
+  };
 
   if (!isOpen) {
     return (
-      <Box>
-        <Tooltip label={label} position="right" withArrow>
-          <UnstyledButton w="100%" px="sm" py={7} onClick={() => setExpanded(v => !v)}
-            style={() => ({ borderRadius: 'var(--mantine-radius-sm)', color: 'var(--mantine-color-dimmed)' })}>
-            <Group justify="center">
-              <Icon size={15} />
-            </Group>
-          </UnstyledButton>
-        </Tooltip>
-      </Box>
+      <Tooltip label={label} position="right" withArrow>
+        <UnstyledButton
+          w="100%"
+          px="sm"
+          py={7}
+          onClick={handleClick}
+          style={(theme) => ({
+            borderRadius: theme.radius.sm,
+            color: 'var(--mantine-color-text)',
+          })}
+        >
+          <Group gap="sm" justify="center" wrap="nowrap">
+            <Icon size={15} style={{ flexShrink: 0 }} />
+          </Group>
+        </UnstyledButton>
+      </Tooltip>
     );
   }
 
   return (
     <Box>
-      <UnstyledButton w="100%" px="sm" py={7} onClick={() => setExpanded(v => !v)}
-        style={() => ({ borderRadius: 'var(--mantine-radius-sm)', color: 'var(--mantine-color-dimmed)' })}>
+      <UnstyledButton
+        w="100%"
+        px="sm"
+        py={7}
+        onClick={handleClick}
+        style={(theme) => ({
+          borderRadius: theme.radius.sm,
+          color: 'var(--mantine-color-dimmed)',
+        })}
+      >
         <Group gap="sm" justify="space-between" wrap="nowrap">
           <Group gap="sm" wrap="nowrap">
             <Icon size={15} style={{ flexShrink: 0 }} />
@@ -104,8 +128,8 @@ function NavSection({ label, icon: Icon, isOpen, children, defaultOpen = false }
           <IconChevronRight size={12} style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 200ms' }} />
         </Group>
       </UnstyledButton>
-      <Collapse {...({ in: expanded } as any)}>
-        <Box pl={isOpen ? 'xs' : 0}>
+      <Collapse in={expanded} expanded={expanded}>
+        <Box pl="xs">
           {children}
         </Box>
       </Collapse>
@@ -160,22 +184,18 @@ export function Navbar({ isOpen, onToggle, onClose, isMobile }: { isOpen: boolea
 
             <Stack gap={2}>
               <NavItem to="/dashboard" label="Inicio" icon={IconDashboard} isOpen={isOpen} />
-              <NavSection label="Sorteos" icon={IconTrophy} isOpen={isOpen} defaultOpen>
-                <Stack gap={2}>
-                  <NavItem to="/raffles" label="Mis Sorteos" icon={IconList} isOpen={isOpen} />
-                </Stack>
-              </NavSection>
+              <NavItem to="/raffles" label="Sorteos" icon={IconTrophy} isOpen={isOpen} />
 
-              <NavSection label="Configuración" icon={IconSettings} isOpen={isOpen} defaultOpen>
+              <NavSection
+                label="Configuración"
+                icon={IconSettings}
+                isOpen={isOpen}
+                onToggleNavbar={onToggle}
+                defaultOpen
+              >
                 <Stack gap={2}>
                   <NavItem to="/admins/me" label="Mi Perfil" icon={IconUser} isOpen={isOpen} />
-                  <NavItem to="/system-config" label="Config. del Sistema" icon={IconTool} isOpen={isOpen} />
-                </Stack>
-              </NavSection>
-
-              <NavSection label="Sistema" icon={IconCategory} isOpen={isOpen}>
-                <Stack gap={2}>
-                  <NavItem to="/admins" label="Administradores" icon={IconUsers} isOpen={isOpen} />
+                  <NavItem to="/system-config" label="Sistema" icon={IconTool} isOpen={isOpen} />
                 </Stack>
               </NavSection>
             </Stack>

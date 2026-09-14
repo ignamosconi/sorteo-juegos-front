@@ -3,13 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Title, Text, Button, Group, Stack, Card, Badge, Box,
   Stepper, Modal, TextInput, ActionIcon, Loader, Center,
-  SimpleGrid, NumberInput, Tabs, Divider, Select, MultiSelect,
+  SimpleGrid, NumberInput, Tabs, Divider, Select, MultiSelect, SegmentedControl,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
   IconPlus, IconTrash, IconEdit, IconPlayerPlay,
   IconExternalLink, IconArrowLeft, IconCheck, IconUsers,
-  IconRun, IconCategory,
+  IconRun, IconCategory, IconDownload,
 } from '@tabler/icons-react';
 import { raffleApi } from '@/api/raffleApi';
 import { raffleTeamApi } from '@/api/raffleTeamApi';
@@ -44,7 +44,8 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
   const [deleteTarget, setDeleteTarget] = useState<RaffleTeam | null>(null);
   const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
   const [selectedGlobal, setSelectedGlobal] = useState<string[]>([]);
-  const [form, setForm] = useState({ name: '', abbreviation: '' });
+  const [form, setForm] = useState({ name: '', abbreviation: '', imagePath: '' });
+  const [errors, setErrors] = useState<{ name?: string; abbreviation?: string }>({});
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -58,17 +59,7 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
     setLoading(false);
   }, [raffleId]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    const asked = sessionStorage.getItem(`import-asked-${raffleId}`);
-    if (!asked && !loading && globalTeams.length > 0 && teams.length === 0) {
-      openImport();
-      sessionStorage.setItem(`import-asked-${raffleId}`, '1');
-    }
-  }, [loading, globalTeams.length, teams.length, raffleId, openImport]);
+  useEffect(() => { void load(); }, [load]);
 
   const handleImport = async () => {
     if (!selectedGlobal.length) { closeImport(); return; }
@@ -84,7 +75,16 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
   };
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.abbreviation.trim()) return;
+    const newErrors: { name?: string; abbreviation?: string } = {};
+    if (!form.name.trim()) newErrors.name = 'El nombre es obligatorio';
+    if (!form.abbreviation.trim()) newErrors.abbreviation = 'La abreviación es obligatoria';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
     setSaving(true);
     try {
       if (editTarget) {
@@ -94,7 +94,7 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
       }
       await load();
       closeAdd();
-      setForm({ name: '', abbreviation: '' });
+      setForm({ name: '', abbreviation: '', imagePath: '' });
       setEditTarget(null);
     } catch {
       notifications.show({ message: 'Error al guardar el equipo', color: 'red' });
@@ -121,20 +121,26 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
       <Group justify="space-between">
         <Text fw={500}>Equipos del sorteo ({teams.length})</Text>
         <Group gap="xs">
-          {globalTeams.length > 0 && (
-            <Button size="xs" variant="light" color="orange" onClick={openImport}>
-              Importar del sistema
-            </Button>
-          )}
-          <Button size="xs" leftSection={<IconPlus size={14} />} color="orange" onClick={() => { setEditTarget(null); setForm({ name: '', abbreviation: '' }); openAdd(); }}>
+          <Button size="xs" variant="light" color="orange" leftSection={<IconDownload size={14} />} onClick={openImport}>
+            Importar del sistema ({globalTeams.length})
+          </Button>
+          <Button size="xs" leftSection={<IconPlus size={14} />} color="orange" onClick={() => { setEditTarget(null); setForm({ name: '', abbreviation: '', imagePath: '' }); setErrors({}); openAdd(); }}>
             Agregar equipo
           </Button>
         </Group>
       </Group>
 
       {teams.length === 0 ? (
-        <Card withBorder radius="md" p="lg" ta="center">
-          <Text c="dimmed" size="sm">No hay equipos cargados todavía.</Text>
+        <Card withBorder radius="md" p="xl" ta="center">
+          <Text c="dimmed" size="sm" mb="md">No hay equipos cargados todavía.</Text>
+          <Group justify="center">
+            <Button size="xs" variant="light" color="orange" leftSection={<IconDownload size={14} />} onClick={openImport}>
+              Importar del sistema
+            </Button>
+            <Button size="xs" leftSection={<IconPlus size={14} />} color="orange" onClick={() => { setEditTarget(null); setForm({ name: '', abbreviation: '', imagePath: '' }); setErrors({}); openAdd(); }}>
+              Agregar equipo
+            </Button>
+          </Group>
         </Card>
       ) : (
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -146,7 +152,7 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
                   <Text size="xs" c="dimmed">{team.abbreviation}</Text>
                 </Box>
                 <Group gap={4}>
-                  <ActionIcon size="sm" variant="subtle" color="orange" onClick={() => { setEditTarget(team); setForm({ name: team.name, abbreviation: team.abbreviation }); openAdd(); }}>
+                  <ActionIcon size="sm" variant="subtle" color="orange" onClick={() => { setEditTarget(team); setForm({ name: team.name, abbreviation: team.abbreviation, imagePath: team.imagePath || '' }); setErrors({}); openAdd(); }}>
                     <IconEdit size={14} />
                   </ActionIcon>
                   <ActionIcon size="sm" variant="subtle" color="red" onClick={() => { setDeleteTarget(team); openDelete(); }}>
@@ -170,7 +176,6 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
         <Stack>
           <Text size="sm">
             El sistema tiene equipos precargados disponibles. Seleccioná los que querés importar a este sorteo.
-            Podés gestionar estos equipos en <strong>Configuración → Config. del Sistema → Equipos</strong>.
           </Text>
           <MultiSelect
             label="Equipos a importar"
@@ -181,7 +186,7 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
             searchable
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeImport}>No importar</Button>
+            <Button variant="subtle" onClick={closeImport}>Cancelar</Button>
             <Button color="orange" loading={saving} onClick={() => void handleImport()}>
               Importar seleccionados
             </Button>
@@ -196,19 +201,36 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
             label="Nombre completo"
             placeholder="Ej: UTN Facultad Regional Villa María"
             value={form.name}
+            error={errors.name}
             onChange={e => {
               const val = e.currentTarget.value;
               setForm(f => ({ ...f, name: val }));
+              if (val.trim()) setErrors(prev => ({ ...prev, name: undefined }));
             }}
+            onKeyDown={e => e.key === 'Enter' && void handleSave()}
+            autoFocus
           />
           <TextInput
             label="Abreviación"
             placeholder="Ej: UTNFRVM"
             value={form.abbreviation}
+            error={errors.abbreviation}
             onChange={e => {
               const val = e.currentTarget.value;
               setForm(f => ({ ...f, abbreviation: val }));
+              if (val.trim()) setErrors(prev => ({ ...prev, abbreviation: undefined }));
             }}
+            onKeyDown={e => e.key === 'Enter' && void handleSave()}
+          />
+          <TextInput
+            label="URL del Logo / Imagen (opcional)"
+            placeholder="Ej: https://ejemplo.com/logo.png"
+            value={form.imagePath}
+            onChange={e => {
+              const val = e.currentTarget.value;
+              setForm(f => ({ ...f, imagePath: val }));
+            }}
+            onKeyDown={e => e.key === 'Enter' && void handleSave()}
           />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeAdd}>Cancelar</Button>
@@ -240,6 +262,7 @@ function SportsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   const [deleteTarget, setDeleteTarget] = useState<Sport | null>(null);
   const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
   const [form, setForm] = useState({ name: '', abbreviation: '' });
+  const [errors, setErrors] = useState<{ name?: string; abbreviation?: string }>({});
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -252,7 +275,16 @@ function SportsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   useEffect(() => { void load(); }, [load]);
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.abbreviation.trim()) return;
+    const newErrors: { name?: string; abbreviation?: string } = {};
+    if (!form.name.trim()) newErrors.name = 'El nombre es obligatorio';
+    if (!form.abbreviation.trim()) newErrors.abbreviation = 'La abreviación es obligatoria';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
     setSaving(true);
     try {
       if (editTarget) await sportApi.updateSport(editTarget.id, form);
@@ -284,7 +316,7 @@ function SportsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
     <Stack>
       <Group justify="space-between">
         <Text fw={500}>Deportes del sorteo ({sports.length})</Text>
-        <Button size="xs" leftSection={<IconPlus size={14} />} color="orange" onClick={() => { setEditTarget(null); setForm({ name: '', abbreviation: '' }); openAdd(); }}>
+        <Button size="xs" leftSection={<IconPlus size={14} />} color="orange" onClick={() => { setEditTarget(null); setForm({ name: '', abbreviation: '' }); setErrors({}); openAdd(); }}>
           Agregar deporte
         </Button>
       </Group>
@@ -303,7 +335,7 @@ function SportsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
                   <Text size="xs" c="dimmed">{sport.abbreviation}</Text>
                 </Box>
                 <Group gap={4}>
-                  <ActionIcon size="sm" variant="subtle" color="orange" onClick={() => { setEditTarget(sport); setForm({ name: sport.name, abbreviation: sport.abbreviation }); openAdd(); }}>
+                  <ActionIcon size="sm" variant="subtle" color="orange" onClick={() => { setEditTarget(sport); setForm({ name: sport.name, abbreviation: sport.abbreviation }); setErrors({}); openAdd(); }}>
                     <IconEdit size={14} />
                   </ActionIcon>
                   <ActionIcon size="sm" variant="subtle" color="red" onClick={() => { setDeleteTarget(sport); openDelete(); }}>
@@ -329,19 +361,26 @@ function SportsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
             label="Nombre completo"
             placeholder="Ej: Fútbol"
             value={form.name}
+            error={errors.name}
             onChange={e => {
               const val = e.currentTarget.value;
               setForm(f => ({ ...f, name: val }));
+              if (val.trim()) setErrors(prev => ({ ...prev, name: undefined }));
             }}
+            onKeyDown={e => e.key === 'Enter' && void handleSave()}
+            autoFocus
           />
           <TextInput
             label="Abreviación"
             placeholder="Ej: FUT"
             value={form.abbreviation}
+            error={errors.abbreviation}
             onChange={e => {
               const val = e.currentTarget.value;
               setForm(f => ({ ...f, abbreviation: val }));
+              if (val.trim()) setErrors(prev => ({ ...prev, abbreviation: undefined }));
             }}
+            onKeyDown={e => e.key === 'Enter' && void handleSave()}
           />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeAdd}>Cancelar</Button>
@@ -373,7 +412,14 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   const [groups, setGroups] = useState<SportCategoryGroup[]>([]);
   const [catModalOpened, { open: openCatModal, close: closeCatModal }] = useDisclosure(false);
   const [groupModalOpened, { open: openGroupModal, close: closeGroupModal }] = useDisclosure(false);
-  const [catForm, setCatForm] = useState({ name: '' });
+
+  // Category modal states
+  const [catSourceType, setCatSourceType] = useState<'predefined' | 'custom'>('predefined');
+  const [selectedPredefinedCat, setSelectedPredefinedCat] = useState<string | null>(null);
+  const [customCatName, setCustomCatName] = useState('');
+  const [catError, setCatError] = useState<string | undefined>(undefined);
+
+  // Group modal states
   const [groupCount, setGroupCount] = useState<number>(4);
   const [groupCapacity, setGroupCapacity] = useState<number>(4);
   const [groupNames, setGroupNames] = useState<string[]>([]);
@@ -406,13 +452,20 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   }, [activeSport, activeCategory, sports]);
 
   const handleAddCategory = async () => {
-    if (!activeSport || !catForm.name.trim()) return;
+    const finalName = catSourceType === 'predefined' ? selectedPredefinedCat : customCatName;
+    if (!activeSport || !finalName?.trim()) {
+      setCatError('Debés ingresar o seleccionar un nombre para la categoría');
+      return;
+    }
+
+    setCatError(undefined);
     setSaving(true);
     try {
-      await sportApi.createCategory(activeSport, { name: catForm.name });
+      await sportApi.createCategory(activeSport, { name: finalName.trim() });
       await load();
       closeCatModal();
-      setCatForm({ name: '' });
+      setCustomCatName('');
+      setSelectedPredefinedCat(null);
     } catch {
       notifications.show({ message: 'Error al guardar categoría', color: 'red' });
     } finally { setSaving(false); }
@@ -426,7 +479,8 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
     try {
       const names = useDefaultNames
         ? Array.from({ length: groupCount }, (_, i) => `Grupo ${String.fromCharCode(65 + i)}`)
-        : groupNames;
+        : groupNames.map((n, i) => n.trim() || `Grupo ${String.fromCharCode(65 + i)}`);
+
       await sportApi.createGroups(activeSport, names.map(n => ({ name: n, capacity: groupCapacity })), catId);
       const updated = await sportApi.getGroups(activeSport, catId);
       setGroups(updated);
@@ -441,8 +495,13 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   const currentSport = sports.find(s => s.id === activeSport);
 
   return (
-    <Stack>
-      <Text fw={500}>Configurar grupos por deporte y categoría</Text>
+    <Stack gap="md">
+      <Group justify="space-between" align="center">
+        <Text fw={600} size="lg">Configuración de grupos y categorías</Text>
+        <Button size="xs" color="orange" leftSection={<IconPlus size={14} />} onClick={() => { setCatError(undefined); openCatModal(); }}>
+          Agregar categoría
+        </Button>
+      </Group>
 
       <Tabs value={activeSport} onChange={v => { setActiveSport(v); setActiveCategory(null); }}>
         <Tabs.List>
@@ -452,18 +511,9 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
         {sports.map(sport => (
           <Tabs.Panel key={sport.id} value={sport.id} pt="md">
             <Stack>
-              {/* Categories sub-tabs */}
-              <Group justify="space-between">
-                <Text size="sm" c="dimmed">Categorías</Text>
-                <Button size="xs" variant="subtle" color="orange" onClick={openCatModal} leftSection={<IconPlus size={12} />}>
-                  Agregar categoría
-                </Button>
-              </Group>
-
               {sport.categories.length > 0 && (
-                <Tabs value={activeCategory ?? sport.categories[0]?.id ?? null}
-                  onChange={setActiveCategory}>
-                  <Tabs.List>
+                <Tabs value={activeCategory ?? sport.categories[0]?.id ?? null} onChange={setActiveCategory}>
+                  <Tabs.List mb="sm">
                     {sport.categories.map(c => <Tabs.Tab key={c.id} value={c.id}>{c.name}</Tabs.Tab>)}
                   </Tabs.List>
                 </Tabs>
@@ -473,7 +523,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
                 <Text size="sm" c="dimmed">Sin categorías. Los grupos serán generales para este deporte.</Text>
               )}
 
-              <Divider />
+              <Divider my="xs" />
 
               <Group justify="space-between">
                 <Text size="sm" fw={500}>Grupos configurados ({groups.length})</Text>
@@ -518,28 +568,41 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
       {/* Category modal */}
       <Modal opened={catModalOpened} onClose={closeCatModal} title="Agregar categoría" centered>
         <Stack>
-          <Text size="sm" c="dimmed">
-            Podés agregar categorías predefinidas en <strong>Configuración del Sistema</strong>.
-          </Text>
-          {defaultCategories.length > 0 && (
+          <Text size="sm" c="dimmed">Elegí la procedencia de la nueva categoría para este deporte:</Text>
+          <SegmentedControl
+            value={catSourceType}
+            onChange={v => { setCatSourceType(v as 'predefined' | 'custom'); setCatError(undefined); }}
+            data={[
+              { label: 'Usar Predefinida', value: 'predefined' },
+              { label: 'Crear Nueva', value: 'custom' },
+            ]}
+          />
+
+          {catSourceType === 'predefined' ? (
             <Select
-              label="Usar categoría predefinida"
-              placeholder="Seleccioná o escribí una nueva"
+              label="Seleccionar categoría del sistema"
+              placeholder="Seleccioná una..."
               data={defaultCategories.map(c => ({ value: c.name, label: c.name }))}
-              value={catForm.name || null}
-              onChange={v => setCatForm({ name: v ?? '' })}
-              clearable
+              value={selectedPredefinedCat}
+              onChange={v => { setSelectedPredefinedCat(v); setCatError(undefined); }}
+              error={catError}
+            />
+          ) : (
+            <TextInput
+              label="Nombre de la nueva categoría"
+              placeholder="Ej: Masculino, Femenino, Sub-20"
+              value={customCatName}
+              error={catError}
+              onChange={e => {
+                const val = e.currentTarget.value;
+                setCustomCatName(val);
+                if (val.trim()) setCatError(undefined);
+              }}
+              onKeyDown={e => e.key === 'Enter' && void handleAddCategory()}
+              autoFocus
             />
           )}
-          <TextInput
-            label="Nombre de la categoría"
-            placeholder="Ej: Masculino"
-            value={catForm.name}
-            onChange={e => {
-              const val = e.currentTarget.value;
-              setCatForm({ name: val });
-            }}
-          />
+
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeCatModal}>Cancelar</Button>
             <Button color="orange" loading={saving} onClick={() => void handleAddCategory()}>Agregar</Button>
@@ -550,8 +613,25 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
       {/* Groups modal */}
       <Modal opened={groupModalOpened} onClose={closeGroupModal} title="Crear grupos" centered>
         <Stack>
-          <NumberInput label="Cantidad de grupos" value={groupCount} min={1} max={20}
-            onChange={v => { setGroupCount(Number(v)); setGroupNames(Array.from({ length: Number(v) }, (_, i) => `Grupo ${String.fromCharCode(65 + i)}`)); }} />
+          <NumberInput
+            label="Cantidad de grupos"
+            value={groupCount}
+            min={1}
+            max={20}
+            onChange={v => {
+              const newCount = Number(v);
+              setGroupCount(newCount);
+              setGroupNames(prev => {
+                const next = [...prev];
+                if (newCount > next.length) {
+                  for (let i = next.length; i < newCount; i++) next.push('');
+                } else {
+                  next.length = newCount;
+                }
+                return next;
+              });
+            }}
+          />
           <NumberInput label="Equipos por grupo" value={groupCapacity} min={1} max={50}
             onChange={v => setGroupCapacity(Number(v))} />
           <Select
@@ -569,11 +649,13 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
                 <TextInput
                   key={i}
                   label={`Nombre del grupo ${i + 1}`}
+                  placeholder={`Ej: Grupo ${String.fromCharCode(65 + i)}`}
                   value={groupNames[i] ?? ''}
                   onChange={e => {
                     const val = e.currentTarget.value;
                     setGroupNames(prev => { const n = [...prev]; n[i] = val; return n; });
                   }}
+                  onKeyDown={e => e.key === 'Enter' && void handleCreateGroups()}
                 />
               ))}
             </Stack>
