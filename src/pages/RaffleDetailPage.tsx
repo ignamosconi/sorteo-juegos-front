@@ -138,14 +138,6 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
       {teams.length === 0 ? (
         <Card withBorder radius="md" p="xl" ta="center">
           <Text c="dimmed" size="sm" mb="md">No hay equipos cargados todavía.</Text>
-          <Group justify="center">
-            <Button size="xs" variant="light" color="orange" leftSection={<IconDownload size={14} />} onClick={openImport}>
-              Importar del sistema
-            </Button>
-            <Button size="xs" leftSection={<IconPlus size={14} />} color="orange" onClick={() => { setEditTarget(null); setForm({ name: '', abbreviation: '', imagePath: '' }); setErrors({}); openAdd(); }}>
-              Agregar equipo
-            </Button>
-          </Group>
         </Card>
       ) : (
         <SimpleGrid cols={{ base: 1, sm: 2 }}>

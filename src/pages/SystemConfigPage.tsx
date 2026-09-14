@@ -1,8 +1,9 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo, useContext } from 'react';
+import { UNSAFE_NavigationContext as NavigationContext } from 'react-router-dom';
 import {
   Title, Text, Button, Group, Stack, Card, TextInput,
   Box, Tabs, Loader, Center, ActionIcon, Modal, SimpleGrid,
-  Avatar, Accordion, Alert,
+  Avatar, Accordion, Select, Paper,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
@@ -19,6 +20,8 @@ import { ImageUploadInput } from '@/components/ui/ImageUploadInput';
 import { getImageUrl } from '@/utils/imageUrl';
 import type { SystemConfig, DefaultCategory, GlobalTeam } from '@/types/api.types';
 
+const ACCORDION_STORAGE_KEY = 'system-config-accordion-state';
+
 export function SystemConfigPage() {
   const [, setConfig] = useState<SystemConfig | null>(null);
   const [initialConfigForm, setInitialConfigForm] = useState<Partial<SystemConfig>>({});
@@ -27,9 +30,23 @@ export function SystemConfigPage() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Unsaved changes & Shake modal
+  // Estado del acordeón guardado en localStorage
+  const [accordionState, setAccordionState] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(ACCORDION_STORAGE_KEY);
+      return saved ? (JSON.parse(saved) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Modal para bloquear navegación no guardada
   const [discardModalOpened, { open: openDiscardModal, close: closeDiscardModal }] = useDisclosure(false);
   const [triggerShake, setTriggerShake] = useState(false);
+
+  // Interceptor de navegación compatible con <BrowserRouter>
+  const { navigator } = useContext(NavigationContext);
+  const [pendingTx, setPendingTx] = useState<(() => void) | null>(null);
 
   // Tabs Ref
   const tabsListRef = useRef<HTMLDivElement>(null);
@@ -66,9 +83,68 @@ export function SystemConfigPage() {
     }).finally(() => setLoading(false));
   }, []);
 
+  // Validación de campos obligatorios
+  const formErrors = useMemo(() => {
+    const errors: {
+      navbarTitle?: string;
+      adminTabName?: string;
+      publicTabName?: string;
+      defaultGroupPrefix?: string;
+    } = {};
+
+    if (configForm.navbarTitle !== undefined && !configForm.navbarTitle.trim()) {
+      errors.navbarTitle = 'El título del navbar no puede estar vacío.';
+    }
+    if (configForm.adminTabName !== undefined && !configForm.adminTabName.trim()) {
+      errors.adminTabName = 'El nombre de la pestaña no puede estar vacío.';
+    }
+    if (configForm.publicTabName !== undefined && !configForm.publicTabName.trim()) {
+      errors.publicTabName = 'El nombre de la pestaña pública no puede estar vacío.';
+    }
+    if (configForm.defaultGroupPrefix !== undefined && !configForm.defaultGroupPrefix.trim()) {
+      errors.defaultGroupPrefix = 'El prefijo de grupo no puede estar vacío.';
+    }
+
+    return errors;
+  }, [configForm]);
+
+  const hasFormErrors = Object.keys(formErrors).length > 0;
   const isDirty = JSON.stringify(configForm) !== JSON.stringify(initialConfigForm);
 
-  // Prevención de recarga de página con cambios no guardados
+  // Interceptar clics en el Navbar u otras rutas de la app cuando hay cambios sin guardar
+  useEffect(() => {
+    if (!isDirty) return;
+
+    const originalPush = navigator.push;
+    const originalReplace = navigator.replace;
+
+    navigator.push = (to: any, state?: any, opts?: any) => {
+      setPendingTx(() => () => originalPush(to, state, opts));
+      setTriggerShake(true);
+      openDiscardModal();
+      setTimeout(() => setTriggerShake(false), 500);
+    };
+
+    navigator.replace = (to: any, state?: any, opts?: any) => {
+      setPendingTx(() => () => originalReplace(to, state, opts));
+      setTriggerShake(true);
+      openDiscardModal();
+      setTimeout(() => setTriggerShake(false), 500);
+    };
+
+    return () => {
+      navigator.push = originalPush;
+      navigator.replace = originalReplace;
+    };
+  }, [navigator, isDirty, openDiscardModal]);
+
+  // Guardar estado del acordeón cuando cambia
+  const handleAccordionChange = (state: string[]) => {
+    setAccordionState(state);
+    localStorage.setItem(ACCORDION_STORAGE_KEY, JSON.stringify(state));
+  };
+
+  // Prevención de recarga o cierre de pestaña del navegador
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isDirty) {
@@ -112,9 +188,10 @@ export function SystemConfigPage() {
   };
 
   const handleSaveConfig = async () => {
+    if (hasFormErrors) return;
+
     setSaving(true);
     try {
-      // Excluir id y updatedAt para evitar el error HTTP 400 (forbidNonWhitelisted)
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id, updatedAt, ...payload } = configForm as SystemConfig;
       const updated = await systemConfigApi.update(payload);
@@ -131,7 +208,6 @@ export function SystemConfigPage() {
   };
 
   const handleDiscardChanges = async () => {
-    // Eliminar imágenes del servidor que se subieron durante esta sesión pero no se guardaron
     for (const path of newlyUploadedImages) {
       if (
         path &&
@@ -145,14 +221,21 @@ export function SystemConfigPage() {
     }
     setConfigForm({ ...initialConfigForm });
     setNewlyUploadedImages([]);
-    closeDiscardModal();
     notifications.show({ message: 'Cambios descartados', color: 'blue' });
   };
 
-  const handleOpenDiscardModal = () => {
-    setTriggerShake(true);
-    openDiscardModal();
-    setTimeout(() => setTriggerShake(false), 500);
+  const handleModalDiscard = async () => {
+    await handleDiscardChanges();
+    closeDiscardModal();
+    if (pendingTx) {
+      pendingTx();
+      setPendingTx(null);
+    }
+  };
+
+  const handleModalKeep = () => {
+    closeDiscardModal();
+    setPendingTx(null);
   };
 
   // Handlers para Categorías y Equipos
@@ -289,23 +372,13 @@ export function SystemConfigPage() {
         {/* ── General (Cajones / Accordion) ── */}
         <Tabs.Panel value="general">
           <Stack gap="md">
-            {isDirty && (
-              <Alert icon={<IconAlertTriangle size={16} />} color="orange" radius="md">
-                <Group justify="space-between" wrap="nowrap">
-                  <Text size="sm">Tenés cambios sin guardar en la configuración.</Text>
-                  <Group gap="xs">
-                    <Button size="xs" variant="subtle" color="red" leftSection={<IconRotate2 size={14} />} onClick={handleOpenDiscardModal}>
-                      Descartar
-                    </Button>
-                    <Button size="xs" color="orange" leftSection={<IconDeviceFloppy size={14} />} loading={saving} onClick={() => void handleSaveConfig()}>
-                      Guardar
-                    </Button>
-                  </Group>
-                </Group>
-              </Alert>
-            )}
-
-            <Accordion variant="separated" radius="md" multiple defaultValue={['admin-panel', 'public-view', 'raffles']}>
+            <Accordion
+              variant="separated"
+              radius="md"
+              multiple
+              value={accordionState}
+              onChange={handleAccordionChange}
+            >
               {/* Cajón 1: Panel de Administración */}
               <Accordion.Item value="admin-panel">
                 <Accordion.Control icon={<IconLayoutNavbar size={18} />}>
@@ -316,7 +389,12 @@ export function SystemConfigPage() {
                     <TextInput
                       label="Título del navbar"
                       value={configForm.navbarTitle ?? ''}
-                      onChange={e => setConfigForm(f => ({ ...f, navbarTitle: e.currentTarget.value }))}
+                      error={formErrors.navbarTitle}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setConfigForm(f => ({ ...f, navbarTitle: val }));
+                      }}
+                      required
                     />
                     <ImageUploadInput
                       label="Logo del Navbar"
@@ -326,7 +404,12 @@ export function SystemConfigPage() {
                     <TextInput
                       label="Nombre de la pestaña (panel admin)"
                       value={configForm.adminTabName ?? ''}
-                      onChange={e => setConfigForm(f => ({ ...f, adminTabName: e.currentTarget.value }))}
+                      error={formErrors.adminTabName}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setConfigForm(f => ({ ...f, adminTabName: val }));
+                      }}
+                      required
                     />
                     <ImageUploadInput
                       label="Favicon del panel admin"
@@ -347,7 +430,10 @@ export function SystemConfigPage() {
                     <TextInput
                       label="Título de la página pública"
                       value={configForm.publicTitle ?? ''}
-                      onChange={e => setConfigForm(f => ({ ...f, publicTitle: e.currentTarget.value }))}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setConfigForm(f => ({ ...f, publicTitle: val }));
+                      }}
                     />
                     <ImageUploadInput
                       label="Banner / Imagen de la vista pública"
@@ -357,7 +443,12 @@ export function SystemConfigPage() {
                     <TextInput
                       label="Nombre de la pestaña (vista pública)"
                       value={configForm.publicTabName ?? ''}
-                      onChange={e => setConfigForm(f => ({ ...f, publicTabName: e.currentTarget.value }))}
+                      error={formErrors.publicTabName}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setConfigForm(f => ({ ...f, publicTabName: val }));
+                      }}
+                      required
                     />
                     <ImageUploadInput
                       label="Favicon de la vista pública"
@@ -376,41 +467,82 @@ export function SystemConfigPage() {
                 <Accordion.Panel>
                   <Stack gap="md" pt="xs">
                     <TextInput
-                      label='Prefijo de grupo por defecto (Ej: "Grupo")'
+                      label='Prefijo de grupo por defecto (Ej: "Grupo", "Zona")'
                       value={configForm.defaultGroupPrefix ?? ''}
-                      onChange={e => setConfigForm(f => ({ ...f, defaultGroupPrefix: e.currentTarget.value }))}
+                      error={formErrors.defaultGroupPrefix}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setConfigForm(f => ({ ...f, defaultGroupPrefix: val }));
+                      }}
+                      required
+                    />
+                    <Select
+                      label="Secuencia / Formato del sufijo de grupo"
+                      placeholder="Seleccioná una secuencia..."
+                      data={[
+                        { value: 'ALPHA_UPPER', label: 'Letras mayúsculas (A, B, C...)' },
+                        { value: 'NUMERIC', label: 'Números (1, 2, 3...)' },
+                        { value: 'ALPHA_LOWER', label: 'Letras minúsculas (a, b, c...)' },
+                        { value: 'ROMAN', label: 'Números romanos (I, II, III...)' },
+                      ]}
+                      value={configForm.defaultGroupSequence ?? 'ALPHA_UPPER'}
+                      onChange={val => setConfigForm(f => ({ ...f, defaultGroupSequence: val || 'ALPHA_UPPER' }))}
                     />
                   </Stack>
                 </Accordion.Panel>
               </Accordion.Item>
             </Accordion>
 
-            <Group justify="flex-end" mt="md">
-              {isDirty && (
-                <Button variant="subtle" color="red" leftSection={<IconRotate2 size={16} />} onClick={handleOpenDiscardModal}>
-                  Descartar cambios
+            {/* Barra de acciones inferior */}
+            <Group justify="space-between" align="center" mt="md">
+              <Box>
+                {isDirty && (
+                  <Group gap="xs" c="orange">
+                    <IconAlertTriangle size={18} />
+                    <Text size="sm" fw={500}>Tenés cambios sin guardar en la configuración.</Text>
+                  </Group>
+                )}
+              </Box>
+
+              <Group gap="xs">
+                {isDirty && (
+                  <Button variant="subtle" color="red" leftSection={<IconRotate2 size={16} />} onClick={() => void handleDiscardChanges()}>
+                    Descartar cambios
+                  </Button>
+                )}
+                <Button
+                  color="orange"
+                  leftSection={<IconDeviceFloppy size={16} />}
+                  loading={saving}
+                  disabled={!isDirty || hasFormErrors}
+                  onClick={() => void handleSaveConfig()}
+                >
+                  Guardar cambios
                 </Button>
-              )}
-              <Button color="orange" leftSection={<IconDeviceFloppy size={16} />} loading={saving} disabled={!isDirty} onClick={() => void handleSaveConfig()}>
-                Guardar cambios
-              </Button>
+              </Group>
             </Group>
           </Stack>
         </Tabs.Panel>
 
         {/* ── Categorías por defecto ── */}
         <Tabs.Panel value="categories">
-          <Card withBorder radius="md" p="xl">
-            <Group justify="space-between" mb="md">
-              <Box>
-                <Text fw={500}>Categorías por defecto</Text>
-                <Text size="sm" c="dimmed">Estas categorías se ofrecen como atajos al configurar deportes en un sorteo.</Text>
-              </Box>
-              <Button size="sm" leftSection={<IconPlus size={14} />} color="orange"
-                onClick={() => { setEditCat(null); setCatForm({ name: '' }); setCatError(undefined); openCat(); }}>
-                Agregar
-              </Button>
-            </Group>
+          <Stack gap="md">
+            <Paper withBorder radius="md" p="md">
+              <Group justify="space-between">
+                <Box>
+                  <Text fw={500}>Categorías por defecto</Text>
+                  <Text size="sm" c="dimmed">Estas categorías se ofrecen como atajos al configurar deportes en un sorteo.</Text>
+                </Box>
+                <Button
+                  size="sm"
+                  leftSection={<IconPlus size={14} />}
+                  color="orange"
+                  onClick={() => { setEditCat(null); setCatForm({ name: '' }); setCatError(undefined); openCat(); }}
+                >
+                  Agregar
+                </Button>
+              </Group>
+            </Paper>
 
             {categories.length === 0 ? (
               <Text c="dimmed" size="sm">No hay categorías definidas.</Text>
@@ -435,22 +567,28 @@ export function SystemConfigPage() {
                 ))}
               </Stack>
             )}
-          </Card>
+          </Stack>
         </Tabs.Panel>
 
         {/* ── Equipos del sistema ── */}
         <Tabs.Panel value="teams">
-          <Card withBorder radius="md" p="xl">
-            <Group justify="space-between" mb="md">
-              <Box>
-                <Text fw={500}>Equipos del sistema</Text>
-                <Text size="sm" c="dimmed">Pool de equipos reutilizables que podés importar en cualquier sorteo.</Text>
-              </Box>
-              <Button size="sm" leftSection={<IconPlus size={14} />} color="orange"
-                onClick={() => { setEditTeam(null); setTeamForm({ name: '', abbreviation: '', imagePath: '' }); setTeamErrors({}); openTeam(); }}>
-                Agregar
-              </Button>
-            </Group>
+          <Stack gap="md">
+            <Paper withBorder radius="md" p="md">
+              <Group justify="space-between">
+                <Box>
+                  <Text fw={500}>Equipos del sistema</Text>
+                  <Text size="sm" c="dimmed">Pool de equipos reutilizables que podés importar en cualquier sorteo.</Text>
+                </Box>
+                <Button
+                  size="sm"
+                  leftSection={<IconPlus size={14} />}
+                  color="orange"
+                  onClick={() => { setEditTeam(null); setTeamForm({ name: '', abbreviation: '', imagePath: '' }); setTeamErrors({}); openTeam(); }}
+                >
+                  Agregar
+                </Button>
+              </Group>
+            </Paper>
 
             {teams.length === 0 ? (
               <Text c="dimmed" size="sm">No hay equipos cargados en el sistema.</Text>
@@ -481,21 +619,23 @@ export function SystemConfigPage() {
                 ))}
               </SimpleGrid>
             )}
-          </Card>
+          </Stack>
         </Tabs.Panel>
       </Tabs>
 
-      {/* Modal Descartar Cambios (con shake) */}
-      <Modal opened={discardModalOpened} onClose={closeDiscardModal} title="Cambios sin guardar" centered>
+      {/* Modal Descartar Cambios (Shake al intentar abandonar la página) */}
+      <Modal opened={discardModalOpened} onClose={handleModalKeep} title="Cambios sin guardar" centered>
         <Box className={triggerShake ? 'shake-box' : ''}>
           <Stack gap="md">
             <Text size="sm">
-              Tenés modificaciones en la configuración que no han sido guardadas. ¿Querés descartar los cambios y restaurar los valores iniciales?
+              Tenés modificaciones en la configuración sin guardar. Si salís de esta página vas a perder los cambios. ¿Querés descartar los cambios o mantenerte acá?
             </Text>
             <Group justify="flex-end">
-              <Button variant="subtle" onClick={closeDiscardModal}>Mantener cambios</Button>
-              <Button color="red" onClick={() => void handleDiscardChanges()}>
-                Descartar cambios
+              <Button variant="subtle" onClick={handleModalKeep}>
+                Mantenerse en la página
+              </Button>
+              <Button color="red" onClick={() => void handleModalDiscard()}>
+                Descartar cambios y salir
               </Button>
             </Group>
           </Stack>
@@ -510,7 +650,7 @@ export function SystemConfigPage() {
             value={catForm.name}
             error={catError}
             onChange={e => {
-              const val = e.currentTarget.value;
+              const val = e.target.value;
               setCatForm({ name: val });
               if (val.trim()) setCatError(undefined);
             }}
@@ -542,7 +682,7 @@ export function SystemConfigPage() {
             value={teamForm.name}
             error={teamErrors.name}
             onChange={e => {
-              const val = e.currentTarget.value;
+              const val = e.target.value;
               setTeamForm(f => ({ ...f, name: val }));
               if (val.trim()) setTeamErrors(prev => ({ ...prev, name: undefined }));
             }}
@@ -554,7 +694,7 @@ export function SystemConfigPage() {
             value={teamForm.abbreviation}
             error={teamErrors.abbreviation}
             onChange={e => {
-              const val = e.currentTarget.value;
+              const val = e.target.value;
               setTeamForm(f => ({ ...f, abbreviation: val }));
               if (val.trim()) setTeamErrors(prev => ({ ...prev, abbreviation: undefined }));
             }}

@@ -52,6 +52,7 @@ export interface SystemConfig {
   publicTabName: string;
   publicFaviconPath: string | null;
   defaultGroupPrefix: string;
+  defaultGroupSequence: string;
   publicTitle: string | null;
   publicImagePath: string | null;
   updatedAt: string;
