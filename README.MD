@@ -77,3 +77,5 @@ npm run preview #ejecutar build
 | `/dashboard` | Página de inicio del panel |
 | `/admins` | Listado y gestión de administradores |
 | `/admins/me` | Perfil del admin autenticado (datos + reset 2FA) |
+
+# SORTEOS
