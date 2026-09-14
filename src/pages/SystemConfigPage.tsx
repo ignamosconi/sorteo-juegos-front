@@ -683,6 +683,7 @@ export function SystemConfigPage() {
             label="Nombre completo"
             value={teamForm.name}
             error={teamErrors.name}
+            placeholder="Facultad Regional Villa María"
             onChange={e => {
               const val = e.target.value;
               setTeamForm(f => ({ ...f, name: val }));
@@ -695,6 +696,7 @@ export function SystemConfigPage() {
             label="Abreviación"
             value={teamForm.abbreviation}
             error={teamErrors.abbreviation}
+            placeholder='FRVM'
             onChange={e => {
               const val = e.target.value;
               setTeamForm(f => ({ ...f, abbreviation: val }));
