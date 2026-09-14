@@ -32,10 +32,16 @@ export const sportApi = {
     apiClient.get<SportCategoryGroup[]>(`/sports/${sportId}/groups`, {
       params: categoryId !== undefined ? { categoryId } : undefined,
     }).then(r => r.data),
-  createGroups: (sportId: string, groups: CreateGroupItem[], categoryId?: string | null) =>
-    apiClient.post<SportCategoryGroup[]>(`/sports/${sportId}/groups`, groups, {
+  createGroups: (
+    sportId: string,
+    groups: CreateGroupItem[] | { groups: CreateGroupItem[] },
+    categoryId?: string | null,
+  ) => {
+    const payload = Array.isArray(groups) ? { groups } : groups;
+    return apiClient.post<SportCategoryGroup[]>(`/sports/${sportId}/groups`, payload, {
       params: categoryId ? { categoryId } : undefined,
-    }).then(r => r.data),
+    }).then(r => r.data);
+  },
   updateGroup: (id: string, data: Partial<{ name: string; capacity: number; sortOrder: number }>) =>
     apiClient.patch<SportCategoryGroup>(`/sport-groups/${id}`, data).then(r => r.data),
   deleteGroup: (id: string) => apiClient.delete(`/sport-groups/${id}`),
