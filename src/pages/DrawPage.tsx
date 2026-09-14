@@ -5,7 +5,7 @@ import {
   Modal, SimpleGrid, Badge, Title,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconArrowLeft, IconRotateLeft, IconEye } from '@tabler/icons-react';
+import { IconArrowLeft, IconArrowBackUp, IconEye } from '@tabler/icons-react';
 import { drawApi } from '@/api/drawApi';
 import { sportApi } from '@/api/sportApi';
 import { notifications } from '@mantine/notifications';
@@ -370,7 +370,7 @@ export function DrawPage() {
 
         {/* Undo */}
         {totalResults > 0 && !allDone && (
-          <Button variant="subtle" color="red" size="sm" leftSection={<IconRotateLeft size={14} />}
+          <Button variant="subtle" color="red" size="sm" leftSection={<IconArrowBackUp size={14} />}
             onClick={openUndo}>
             Deshacer último sorteo
           </Button>
