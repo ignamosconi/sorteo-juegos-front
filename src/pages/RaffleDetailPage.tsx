@@ -3,11 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Title, Text, Button, Group, Stack, Card, Badge, Box, 
   Stepper, Modal, TextInput, ActionIcon, Loader, Center,
-  SimpleGrid, NumberInput, Tabs, Divider, Select, MultiSelect, SegmentedControl, Paper, Avatar, Alert, Tooltip,
+  SimpleGrid, NumberInput, Tabs, Divider, MultiSelect, SegmentedControl, Paper, Avatar, Alert, Tooltip,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
-  IconPlus, IconTrash, IconEdit, IconPlayerPlay,
+  IconPlus, IconTrash, IconEdit,
   IconExternalLink, IconArrowLeft, IconCheck, IconUsers,
   IconRun, IconCategory, IconDownload, IconShield, IconX, IconAlertTriangle, IconInfoCircle,
 } from '@tabler/icons-react';
@@ -25,7 +25,8 @@ import { ImageUploadInput } from '@/components/ui/ImageUploadInput';
 import { getImageUrl } from '@/utils/imageUrl';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Sin iniciar', color: 'gray' },
+  pending: { label: 'Sin configurar', color: 'gray' },
+  configured: { label: 'Configurado', color: 'blue' },
   in_progress: { label: 'En proceso', color: 'orange' },
   finished: { label: 'Finalizado', color: 'green' },
 };
@@ -236,18 +237,18 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
           <Text size="sm" c="dimmed">
             Hacé click en el campo para desplegar y seleccionar uno o varios equipos.
           </Text>
-          <MultiSelect
-            data-autofocus
-            label="Equipos disponibles"
-            placeholder={selectedGlobal.length > 0 ? '' : 'Seleccioná equipos...'}
-            data={availableGlobalTeams.map(t => ({ value: t.id, label: `${t.name} (${t.abbreviation})` }))}
-            value={selectedGlobal}
-            onChange={setSelectedGlobal}
-            searchable={false}
-            hidePickedOptions
-            maxDropdownHeight={220}
-            comboboxProps={{ maxDropdownHeight: 220, shadow: 'md' }}
-          />
+            <MultiSelect
+              data-autofocus
+              label="Equipos disponibles"
+              placeholder={selectedGlobal.length > 0 ? '' : 'Seleccioná equipos...'}
+              data={availableGlobalTeams.map(t => ({ value: t.id, label: `${t.name} (${t.abbreviation})` }))}
+              value={selectedGlobal}
+              onChange={setSelectedGlobal}
+              searchable={false}
+              hidePickedOptions
+              maxDropdownHeight="50vh"
+              comboboxProps={{ shadow: 'md', withinPortal: true }}
+            />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeImport}>Cancelar</Button>
             <Button color="orange" loading={saving} disabled={selectedGlobal.length === 0} onClick={() => void handleImport()}>
@@ -519,7 +520,9 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   const [totalTeamsCount, setTotalTeamsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [activeSport, setActiveSport] = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  const [sportCategoryMap, setSportCategoryMap] = useState<Record<string, string>>({});
+
   const [groups, setGroups] = useState<SportCategoryGroup[]>([]);
   
   // Modales
@@ -579,7 +582,6 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
 
       setSports(sportsWithData);
 
-      // PRESERVAR EL DEPORTE ACTIVO SIEMPRE
       setActiveSport(prev => {
         if (prev && sportsWithData.some(s => s.id === prev)) return prev;
         return sportsWithData[0]?.id ?? null;
@@ -593,24 +595,34 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
 
   useEffect(() => { void loadInitialData(); }, [loadInitialData]);
 
-  // Carga de grupos al cambiar deporte o categoría activa
+  const getActiveCategoryForSport = useCallback((sportId: string | null, sportsList: SportWithData[]) => {
+    if (!sportId) return null;
+    const sport = sportsList.find(s => s.id === sportId);
+    if (!sport || !sport.hasCategories || sport.categories.length === 0) return null;
+
+    const savedCatId = sportCategoryMap[sportId];
+    if (savedCatId && sport.categories.some(c => c.id === savedCatId)) {
+      return savedCatId;
+    }
+    return sport.categories[0].id;
+  }, [sportCategoryMap]);
+
+  const activeCategoryVal = getActiveCategoryForSport(activeSport, sports);
+
   useEffect(() => {
     if (!activeSport) return;
-    const sport = sports.find(s => s.id === activeSport);
-    const catId = sport?.hasCategories ? (activeCategory ?? sport.categories[0]?.id ?? null) : null;
+    const catId = currentSport?.hasCategories ? activeCategoryVal : null;
     
     sportApi.getGroups(activeSport, catId)
       .then(setGroups)
       .catch((err) => {
         if (err?.response?.status === 429) show429Notification();
       });
-  }, [activeSport, activeCategory, sports]);
+  }, [activeSport, activeCategoryVal, currentSport, sports]);
 
-  // Centrado de scroll para pestañas de Deporte
   const handleSportTabChange = (sportId: string | null) => {
     if (!sportId) return;
     setActiveSport(sportId);
-    setActiveCategory(null);
 
     if (sportsTabsListRef.current) {
       const activeTab = sportsTabsListRef.current.querySelector(`[data-value="${sportId}"]`) as HTMLElement;
@@ -618,10 +630,9 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
     }
   };
 
-  // Centrado de scroll para pestañas de Categoría
   const handleCatTabChange = (catId: string | null) => {
-    if (!catId) return;
-    setActiveCategory(catId);
+    if (!catId || !activeSport) return;
+    setSportCategoryMap(prev => ({ ...prev, [activeSport]: catId }));
 
     if (catsTabsListRef.current) {
       const activeTab = catsTabsListRef.current.querySelector(`[data-value="${catId}"]`) as HTMLElement;
@@ -658,7 +669,8 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
         const created = await Promise.all(selectedPredefinedCats.map(name => sportApi.createCategory(activeSport, { name })));
         await loadInitialData();
         if (created.length > 0 && created[created.length - 1]?.id) {
-          setActiveCategory(created[created.length - 1].id);
+          const lastCreatedId = created[created.length - 1].id;
+          setSportCategoryMap(prev => ({ ...prev, [activeSport]: lastCreatedId }));
         }
         closeCatModal();
         setSelectedPredefinedCats([]);
@@ -686,7 +698,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
         const created = await sportApi.createCategory(activeSport, { name: trimmedName });
         await loadInitialData();
         if (created?.id) {
-          setActiveCategory(created.id);
+          setSportCategoryMap(prev => ({ ...prev, [activeSport]: created.id }));
         }
         closeCatModal();
         setCustomCatName('');
@@ -729,8 +741,14 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
     setSaving(true);
     try {
       await sportApi.deleteCategory(deleteCatTarget.id);
+      
+      setSportCategoryMap(prev => {
+        const next = { ...prev };
+        if (next[activeSport] === deleteCatTarget.id) delete next[activeSport];
+        return next;
+      });
+
       await loadInitialData();
-      setActiveCategory(null);
       closeDeleteCat();
       setDeleteCatTarget(null);
     } catch (err: any) {
@@ -740,12 +758,18 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   };
 
   const handleDeleteAllCategories = async () => {
-    if (!currentSport) return;
+    if (!currentSport || !activeSport) return;
     setSaving(true);
     try {
       await Promise.all(currentSport.categories.map(c => sportApi.deleteCategory(c.id)));
+      
+      setSportCategoryMap(prev => {
+        const next = { ...prev };
+        delete next[activeSport];
+        return next;
+      });
+
       await loadInitialData();
-      setActiveCategory(null);
       closeDeleteAllCats();
       notifications.show({ message: 'Todas las categorías del deporte fueron eliminadas', color: 'blue' });
     } catch (err: any) {
@@ -782,7 +806,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   const handleCreateGroups = async () => {
     if (!activeSport) return;
     setSaving(true);
-    const catId = currentSport?.hasCategories ? (activeCategoryVal) : null;
+    const catId = currentSport?.hasCategories ? activeCategoryVal : null;
     try {
       const groupPayload = Array.from({ length: groupCount }).map((_, i) => {
         const defaultName = `Grupo ${String.fromCharCode(65 + i)}`;
@@ -811,7 +835,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
     setSaving(true);
     try {
       await Promise.all(groups.map(g => sportApi.deleteGroup(g.id)));
-      const catId = currentSport?.hasCategories ? (activeCategoryVal) : null;
+      const catId = currentSport?.hasCategories ? activeCategoryVal : null;
       if (activeSport) setGroups(await sportApi.getGroups(activeSport, catId));
       closeDeleteAllGroups();
       notifications.show({ message: 'Todos los grupos fueron eliminados', color: 'blue' });
@@ -823,11 +847,6 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
 
   if (loading) return <Center py="xl"><Loader color="orange" /></Center>;
 
-  const activeCategoryVal = (activeCategory && currentSport?.categories.some(c => c.id === activeCategory))
-    ? activeCategory
-    : (currentSport?.categories[0]?.id ?? null);
-
-  // Cálculos matemáticos
   const maxGroupsAllowed = totalTeamsCount > 0 ? totalTeamsCount : 20;
   const calculatedTotalCapacity = capacityMode === 'same'
     ? groupCount * groupCapacity
@@ -992,7 +1011,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
                     <ActionIcon size="sm" variant="subtle" color="red" onClick={async () => {
                       try {
                         await sportApi.deleteGroup(g.id);
-                        const catId = currentSport?.hasCategories ? (activeCategoryVal) : null;
+                        const catId = currentSport?.hasCategories ? activeCategoryVal : null;
                         if (activeSport) setGroups(await sportApi.getGroups(activeSport, catId));
                       } catch (err: any) {
                         if (err?.response?.status === 429) show429Notification();
@@ -1038,6 +1057,8 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
               error={catError}
               searchable={false}
               hidePickedOptions
+              maxDropdownHeight="50vh"
+              comboboxProps={{ shadow: 'md', withinPortal: true }}
             />
           ) : (
             <TextInput
@@ -1062,7 +1083,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
         </Stack>
       </Modal>
 
-      {/* Modal Renombrar Categoría (Doble click) */}
+      {/* Modal Renombrar Categoría */}
       <Modal opened={renameCatOpened} onClose={closeRenameCat} title="Renombrar categoría" centered>
         <Stack>
           <TextInput
@@ -1105,7 +1126,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
         </Stack>
       </Modal>
 
-      {/* ── MODAL DE CREACIÓN DE GRUPOS (Sin saltos de layout) ── */}
+      {/* Modal de Creación de Grupos */}
       <Modal opened={groupModalOpened} onClose={closeGroupModal} title="Configurar y Crear Grupos" size="lg" centered>
         <Stack gap="md">
           {totalTeamsCount > 0 ? (
@@ -1138,7 +1159,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
             </Stack>
           </Paper>
 
-          {/* Sub-sección 2: Equipos por grupo (Capacidad) */}
+          {/* Sub-sección 2: Equipos por grupo */}
           <Paper withBorder p="sm" radius="md">
             <Stack gap="xs">
               <Group justify="space-between">
@@ -1180,7 +1201,6 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
                 </SimpleGrid>
               )}
 
-              {/* RESERVA DE ESPACIO FIJO (Sin saltos de layout al aparecer) */}
               <Box style={{ minHeight: 18 }}>
                 <Text
                   size="xs"
@@ -1267,39 +1287,35 @@ export function RaffleDetailPage() {
   const [raffle, setRaffle] = useState<Raffle | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeStep, setActiveStep] = useState(0);
-  const [wizardDone, setWizardDone] = useState(false);
-  const [startOpened, { open: openStart, close: closeStart }] = useDisclosure(false);
-  const [starting, setStarting] = useState(false);
-  const [editTab, setEditTab] = useState<string>('teams');
 
   useEffect(() => {
     if (!id) return;
-    raffleApi.getById(id).then(r => {
-      setRaffle(r);
-      if (r.status !== 'pending') setWizardDone(true);
+    raffleApi.getById(id).then(async (r) => {
+      if (r.status === 'configured') {
+        const resetRaffle = await raffleApi.update(r.id, { status: 'pending' });
+        setRaffle(resetRaffle);
+      } else {
+        setRaffle(r);
+      }
     }).catch(err => {
       if (err?.response?.status === 429) show429Notification();
     }).finally(() => setLoading(false));
   }, [id]);
 
-  const handleStart = async () => {
+  const handleFinishConfig = async () => {
     if (!raffle) return;
-    setStarting(true);
     try {
-      const updated = await raffleApi.start(raffle.id);
-      setRaffle(updated);
-      closeStart();
-      setWizardDone(true);
+      await raffleApi.update(raffle.id, { status: 'configured' });
+      notifications.show({ message: 'Configuración de sorteo finalizada con éxito', color: 'green' });
+      navigate('/raffles');
     } catch (err: any) {
       if (err?.response?.status === 429) show429Notification();
-      else notifications.show({ message: 'Error al iniciar el sorteo', color: 'red' });
-    } finally { setStarting(false); }
+      else notifications.show({ message: 'Error al finalizar la configuración', color: 'red' });
+    }
   };
 
   if (loading) return <Center py="xl"><Loader color="orange" /></Center>;
   if (!raffle) return <Text>Sorteo no encontrado.</Text>;
-
-  const isEditable = raffle.status === 'pending';
 
   return (
     <Box p="md">
@@ -1322,75 +1338,27 @@ export function RaffleDetailPage() {
               Ver público
             </Button>
           )}
-          {raffle.drawSlug && raffle.status === 'in_progress' && (
-            <Button size="sm" color="orange" leftSection={<IconPlayerPlay size={14} />}
-              onClick={() => navigate(`/sortear/${raffle.drawSlug}`)}>
-              Ir al sorteo
-            </Button>
-          )}
-          {isEditable && wizardDone && (
-            <Button size="sm" color="green" leftSection={<IconPlayerPlay size={14} />} onClick={openStart}>
-              Iniciar sorteo
-            </Button>
-          )}
         </Group>
       </Group>
 
-      {/* Wizard primera vez */}
-      {isEditable && !wizardDone ? (
-        <Card withBorder radius="md" p="xl">
-          <Stepper active={activeStep} color="orange" mb="xl">
-            <Stepper.Step label="Equipos" icon={<IconUsers size={16} />} description="que participan" />
-            <Stepper.Step label="Deportes" icon={<IconRun size={16} />} description="en los que compiten" />
-            <Stepper.Step label="Grupos" icon={<IconCategory size={16} />} description="y categorías" />
-          </Stepper>
+      {/* Wizard de Configuración de Sorteo */}
+      <Card withBorder radius="md" p="xl">
+        <Stepper active={activeStep} color="orange" mb="xl">
+          <Stepper.Step label="Equipos" icon={<IconUsers size={16} />} description="que participan" />
+          <Stepper.Step label="Deportes" icon={<IconRun size={16} />} description="en los que compiten" />
+          <Stepper.Step label="Grupos" icon={<IconCategory size={16} />} description="y categorías" />
+        </Stepper>
 
-          {activeStep === 0 && (
-            <TeamsStep raffleId={raffle.id} onDone={() => setActiveStep(1)} />
-          )}
-          {activeStep === 1 && (
-            <SportsStep raffleId={raffle.id} onDone={() => setActiveStep(2)} onBack={() => setActiveStep(0)} />
-          )}
-          {activeStep === 2 && (
-            <GroupsStep raffleId={raffle.id} onDone={() => setWizardDone(true)} onBack={() => setActiveStep(1)} />
-          )}
-        </Card>
-      ) : (
-        /* Editor por secciones */
-        <Tabs value={editTab} onChange={v => setEditTab(v ?? 'teams')}>
-          <Tabs.List mb="md">
-            <Tabs.Tab value="teams" leftSection={<IconUsers size={14} />}>Equipos</Tabs.Tab>
-            <Tabs.Tab value="sports" leftSection={<IconRun size={14} />}>Deportes</Tabs.Tab>
-            <Tabs.Tab value="groups" leftSection={<IconCategory size={14} />}>Grupos</Tabs.Tab>
-          </Tabs.List>
-
-          <Tabs.Panel value="teams">
-            <TeamsStep raffleId={raffle.id} onDone={() => setEditTab('sports')} />
-          </Tabs.Panel>
-          <Tabs.Panel value="sports">
-            <SportsStep raffleId={raffle.id} onDone={() => setEditTab('groups')} onBack={() => setEditTab('teams')} />
-          </Tabs.Panel>
-          <Tabs.Panel value="groups">
-            <GroupsStep raffleId={raffle.id} onDone={() => {}} onBack={() => setEditTab('sports')} />
-          </Tabs.Panel>
-        </Tabs>
-      )}
-
-      {/* Start Modal */}
-      <Modal opened={startOpened} onClose={closeStart} title="Iniciar sorteo" centered>
-        <Stack>
-          <Text>
-            Al iniciar el sorteo se generarán los links público y privado. Una vez iniciado, no podrás modificar la estructura de equipos, deportes y grupos.
-          </Text>
-          <Text fw={500}>¿Estás seguro que querés iniciar el sorteo <strong>{raffle.name}</strong>?</Text>
-          <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeStart}>Cancelar</Button>
-            <Button color="green" loading={starting} onClick={() => void handleStart()}>
-              Iniciar sorteo
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+        {activeStep === 0 && (
+          <TeamsStep raffleId={raffle.id} onDone={() => setActiveStep(1)} />
+        )}
+        {activeStep === 1 && (
+          <SportsStep raffleId={raffle.id} onDone={() => setActiveStep(2)} onBack={() => setActiveStep(0)} />
+        )}
+        {activeStep === 2 && (
+          <GroupsStep raffleId={raffle.id} onDone={() => void handleFinishConfig()} onBack={() => setActiveStep(1)} />
+        )}
+      </Card>
     </Box>
   );
 }

@@ -82,7 +82,7 @@ export interface GlobalTeam {
 
 // ── Raffles ───────────────────────────────────────────────────────────────────
 
-export type RaffleStatus = 'pending' | 'in_progress' | 'finished';
+export type RaffleStatus = 'pending' | 'configured' | 'in_progress' | 'finished';
 
 export interface Raffle {
   id: string;

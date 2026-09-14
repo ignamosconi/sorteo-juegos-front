@@ -634,7 +634,7 @@ export function SystemConfigPage() {
             </Text>
             <Group justify="flex-end">
               <Button variant="subtle" onClick={handleModalKeep}>
-                Mantenerse en la página
+                Quedarse
               </Button>
               <Button color="red" onClick={() => void handleModalDiscard()}>
                 Descartar cambios y salir

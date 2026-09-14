@@ -2,18 +2,28 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Text, Button, Group, Stack, Card, Badge, TextInput,
-  Box, ActionIcon, Modal, Skeleton, Select,
+  Box, ActionIcon, Modal, Skeleton, Select, Tooltip,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconPlus, IconSearch, IconEdit, IconTrash, IconEye } from '@tabler/icons-react';
+import { IconPlus, IconSearch, IconEdit, IconTrash, IconEye, IconPlayerPlay, IconAlertTriangle } from '@tabler/icons-react';
 import { raffleApi } from '@/api/raffleApi';
 import type { Raffle } from '@/types/api.types';
 import { notifications } from '@mantine/notifications';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Sin iniciar', color: 'gray' },
+  pending: { label: 'Sin configurar', color: 'gray' },
+  configured: { label: 'Configurado', color: 'blue' },
   in_progress: { label: 'En proceso', color: 'orange' },
   finished: { label: 'Finalizado', color: 'green' },
+};
+
+const show429Notification = () => {
+  notifications.show({
+    title: 'Demasiadas peticiones',
+    message: 'Por favor aguardá unos segundos antes de realizar otra acción.',
+    color: 'red',
+    icon: <IconAlertTriangle size={18} />,
+  });
 };
 
 export function RafflesPage() {
@@ -26,8 +36,12 @@ export function RafflesPage() {
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Raffle | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [startTarget, setStartTarget] = useState<Raffle | null>(null);
+  const [starting, setStarting] = useState(false);
+
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
+  const [startOpened, { open: openStart, close: closeStart }] = useDisclosure(false);
 
   const fetchRaffles = async () => {
     setLoading(true);
@@ -37,6 +51,8 @@ export function RafflesPage() {
         sortByDate: sortByDate === 'true',
       });
       setRaffles(data);
+    } catch (err: any) {
+      if (err?.response?.status === 429) show429Notification();
     } finally {
       setLoading(false);
     }
@@ -52,8 +68,9 @@ export function RafflesPage() {
       closeCreate();
       setNewName('');
       navigate(`/raffles/${raffle.id}`);
-    } catch {
-      notifications.show({ message: 'Error al crear el sorteo', color: 'red' });
+    } catch (err: any) {
+      if (err?.response?.status === 429) show429Notification();
+      else notifications.show({ message: 'Error al crear el sorteo', color: 'red' });
     } finally {
       setCreating(false);
     }
@@ -67,10 +84,31 @@ export function RafflesPage() {
       setRaffles(prev => prev.filter(r => r.id !== deleteTarget.id));
       closeDelete();
       setDeleteTarget(null);
-    } catch {
-      notifications.show({ message: 'Error al eliminar el sorteo', color: 'red' });
+    } catch (err: any) {
+      if (err?.response?.status === 429) show429Notification();
+      else notifications.show({ message: 'Error al eliminar el sorteo', color: 'red' });
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleStart = async () => {
+    if (!startTarget) return;
+    setStarting(true);
+    try {
+      const updated = await raffleApi.start(startTarget.id);
+      closeStart();
+      setStartTarget(null);
+      if (updated.drawSlug) {
+        navigate(`/sortear/${updated.drawSlug}`);
+      } else {
+        await fetchRaffles();
+      }
+    } catch (err: any) {
+      if (err?.response?.status === 429) show429Notification();
+      else notifications.show({ message: 'Error al iniciar el sorteo', color: 'red' });
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -133,16 +171,47 @@ export function RafflesPage() {
                 </Box>
                 <Group gap="xs" wrap="nowrap">
                   {raffle.publicSlug && (
-                    <ActionIcon variant="subtle" color="blue" onClick={() => window.open(`/s/${raffle.publicSlug}`, '_blank')}>
-                      <IconEye size={16} />
-                    </ActionIcon>
+                    <Tooltip label="Ver vista pública">
+                      <ActionIcon variant="subtle" color="blue" onClick={() => window.open(`/s/${raffle.publicSlug}`, '_blank')}>
+                        <IconEye size={16} />
+                      </ActionIcon>
+                    </Tooltip>
                   )}
-                  <ActionIcon variant="subtle" color="orange" onClick={() => navigate(`/raffles/${raffle.id}`)}>
-                    <IconEdit size={16} />
-                  </ActionIcon>
-                  <ActionIcon variant="subtle" color="red" onClick={() => { setDeleteTarget(raffle); openDelete(); }}>
-                    <IconTrash size={16} />
-                  </ActionIcon>
+                  
+                  {/* Botón de Iniciar Sorteo únicamente disponible si el estado es Configurado */}
+                  {raffle.status === 'configured' && (
+                    <Button
+                      size="xs"
+                      color="green"
+                      leftSection={<IconPlayerPlay size={14} />}
+                      onClick={() => { setStartTarget(raffle); openStart(); }}
+                    >
+                      Iniciar sorteo
+                    </Button>
+                  )}
+
+                  {raffle.status === 'in_progress' && raffle.drawSlug && (
+                    <Button
+                      size="xs"
+                      color="orange"
+                      leftSection={<IconPlayerPlay size={14} />}
+                      onClick={() => navigate(`/sortear/${raffle.drawSlug}`)}
+                    >
+                      Ir al sorteo
+                    </Button>
+                  )}
+
+                  <Tooltip label="Editar configuración">
+                    <ActionIcon variant="subtle" color="orange" onClick={() => navigate(`/raffles/${raffle.id}`)}>
+                      <IconEdit size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+
+                  <Tooltip label="Eliminar sorteo">
+                    <ActionIcon variant="subtle" color="red" onClick={() => { setDeleteTarget(raffle); openDelete(); }}>
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </Tooltip>
                 </Group>
               </Group>
             </Card>
@@ -178,6 +247,22 @@ export function RafflesPage() {
             <Button variant="subtle" onClick={closeDelete}>Cancelar</Button>
             <Button color="red" loading={deleting} onClick={() => void handleDelete()}>
               Eliminar
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Start confirm modal */}
+      <Modal opened={startOpened} onClose={closeStart} title="Iniciar sorteo" centered>
+        <Stack>
+          <Text>
+            Al iniciar el sorteo se generarán los accesos para la ejecución del sorteo. Una vez iniciado, no podrás modificar la estructura del mismo.
+          </Text>
+          <Text fw={500}>¿Estás seguro que querés iniciar el sorteo <strong>{startTarget?.name}</strong>?</Text>
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={closeStart}>Cancelar</Button>
+            <Button color="green" loading={starting} onClick={() => void handleStart()}>
+              Iniciar sorteo
             </Button>
           </Group>
         </Stack>

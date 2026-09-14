@@ -4,14 +4,15 @@ import {
   Title, Text, Button, Group, SimpleGrid, Card, Stack,
   Badge, Skeleton, Box, Modal, TextInput,
 } from '@mantine/core';
-import { IconPlus, IconTrophy, IconPlayerPlay, IconCheck } from '@tabler/icons-react';
+import { IconPlus, IconTrophy, IconSettings, IconPlayerPlay, IconCheck } from '@tabler/icons-react';
 import { useDisclosure } from '@mantine/hooks';
 import { raffleApi } from '@/api/raffleApi';
 import type { Raffle } from '@/types/api.types';
 import { notifications } from '@mantine/notifications';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Sin iniciar', color: 'gray' },
+  pending: { label: 'Sin configurar', color: 'gray' },
+  configured: { label: 'Configurado', color: 'blue' },
   in_progress: { label: 'En proceso', color: 'orange' },
   finished: { label: 'Finalizado', color: 'green' },
 };
@@ -50,6 +51,7 @@ export function DashboardPage() {
 
   const counts = {
     pending: raffles.filter(r => r.status === 'pending').length,
+    configured: raffles.filter(r => r.status === 'configured').length,
     in_progress: raffles.filter(r => r.status === 'in_progress').length,
     finished: raffles.filter(r => r.status === 'finished').length,
   };
@@ -63,9 +65,9 @@ export function DashboardPage() {
         </Box>
       </Group>
 
-      <SimpleGrid cols={{ base: 1, sm: 3 }} mb="xl">
+      <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} mb="xl">
         {loading ? (
-          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} height={100} radius="md" />)
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} height={100} radius="md" />)
         ) : (
           <>
             <Card withBorder radius="md" p="lg">
@@ -73,10 +75,21 @@ export function DashboardPage() {
                 <IconTrophy size={28} color="var(--mantine-color-gray-5)" />
                 <Box>
                   <Text size="xl" fw={700}>{counts.pending}</Text>
-                  <Text size="sm" c="dimmed">Sin iniciar</Text>
+                  <Text size="sm" c="dimmed">Sin configurar</Text>
                 </Box>
               </Group>
             </Card>
+
+            <Card withBorder radius="md" p="lg">
+              <Group>
+                <IconSettings size={28} color="var(--mantine-color-blue-5)" />
+                <Box>
+                  <Text size="xl" fw={700}>{counts.configured}</Text>
+                  <Text size="sm" c="dimmed">Configurados</Text>
+                </Box>
+              </Group>
+            </Card>
+
             <Card withBorder radius="md" p="lg">
               <Group>
                 <IconPlayerPlay size={28} color="var(--mantine-color-orange-5)" />
@@ -86,6 +99,7 @@ export function DashboardPage() {
                 </Box>
               </Group>
             </Card>
+
             <Card withBorder radius="md" p="lg">
               <Group>
                 <IconCheck size={28} color="var(--mantine-color-green-5)" />
