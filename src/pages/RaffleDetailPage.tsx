@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Title, Text, Button, Group, Stack, Card, Badge, Box,
+  Title, Text, Button, Group, Stack, Card, Badge, Box, Alert, 
   Stepper, Modal, TextInput, ActionIcon, Loader, Center,
   SimpleGrid, NumberInput, Tabs, Divider, Select, MultiSelect, SegmentedControl,
 } from '@mantine/core';
@@ -9,7 +9,7 @@ import { useDisclosure } from '@mantine/hooks';
 import {
   IconPlus, IconTrash, IconEdit, IconPlayerPlay,
   IconExternalLink, IconArrowLeft, IconCheck, IconUsers,
-  IconRun, IconCategory, IconDownload,
+  IconRun, IconCategory, IconDownload, IconShield,
 } from '@tabler/icons-react';
 import { raffleApi } from '@/api/raffleApi';
 import { raffleTeamApi } from '@/api/raffleTeamApi';
@@ -24,7 +24,6 @@ import type {
 import { ImageUploadInput } from '@/components/ui/ImageUploadInput';
 import { getImageUrl } from '@/utils/imageUrl';
 import { Avatar } from '@mantine/core';
-
 
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -145,7 +144,9 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
             <Card key={team.id} withBorder radius="md" p="sm">
               <Group justify="space-between">
                 <Group gap="sm">
-                  <Avatar src={getImageUrl(team.imagePath)} radius="xl" size="sm" alt={team.name} />
+                  <Avatar src={getImageUrl(team.imagePath)} radius="xl" size="sm" alt={team.name}>
+                    <IconShield size={14} />
+                  </Avatar>
                   <Box>
                     <Text fw={500} size="sm">{team.name}</Text>
                     <Text size="xs" c="dimmed">{team.abbreviation}</Text>
@@ -199,7 +200,7 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
         <Stack>
           <TextInput
             label="Nombre completo"
-            placeholder="Ej: UTN Facultad Regional Villa María"
+            placeholder="Ej: Facultad Regional Villa María"
             value={form.name}
             error={errors.name}
             onChange={e => {
@@ -212,7 +213,7 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
           />
           <TextInput
             label="Abreviación"
-            placeholder="Ej: UTNFRVM"
+            placeholder="Ej: FRVM"
             value={form.abbreviation}
             error={errors.abbreviation}
             onChange={e => {
@@ -351,6 +352,18 @@ function SportsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
       </Group>
 
       <Modal opened={addOpened} onClose={closeAdd} title={editTarget ? 'Editar deporte' : 'Agregar deporte'} centered>
+
+        <Alert
+          icon={<IconShield size={16} />}
+          color="orange"
+          mb="md"
+          radius="md"
+        >
+          <Text size="sm">
+            Las categorías (masculino, femenino) se cargan después. Escribí solo el NOMBRE del deporte.
+          </Text>
+        </Alert>
+
         <Stack>
           <TextInput
             label="Nombre completo"
@@ -492,7 +505,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   return (
     <Stack gap="md">
       <Group justify="space-between" align="center">
-        <Text fw={600} size="lg">Configuración de grupos y categorías</Text>
+        <Text fw={600} size="lg">Configuración de CATEGORÍAS</Text>
         <Button size="xs" color="orange" leftSection={<IconPlus size={14} />} onClick={() => { setCatError(undefined); openCatModal(); }}>
           Agregar categoría
         </Button>
@@ -519,8 +532,9 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
               )}
 
               <Divider my="xs" />
-
+              <Text fw={600} size="lg">Configuración de GRUPOS</Text>
               <Group justify="space-between">
+                
                 <Text size="sm" fw={500}>Grupos configurados ({groups.length})</Text>
                 <Button size="xs" leftSection={<IconPlus size={14} />} color="orange" onClick={() => { setGroupCount(4); setGroupCapacity(4); setUseDefaultNames(true); setGroupNames([]); openGroupModal(); }}>
                   Crear grupos

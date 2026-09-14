@@ -225,7 +225,7 @@ export function LoginPage() {
         <Group justify="space-between" align="center" mb="xs">
           <Group gap="xs">
             <Image src={logoUtn} w={32} h={32} fit="contain" />
-            <Text fw={600} size="sm">UTN FRVM</Text>
+            <Text fw={600} size="sm">FRVM</Text>
           </Group>
           <ThemeToggle />
         </Group>

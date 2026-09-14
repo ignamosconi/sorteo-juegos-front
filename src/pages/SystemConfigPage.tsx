@@ -7,7 +7,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
-  IconPlus, IconTrash, IconEdit, IconDeviceFloppy,
+  IconPlus, IconTrash, IconEdit, IconDeviceFloppy, IconShield,
   IconLayoutNavbar, IconWorld, IconTrophy, IconAlertTriangle,
   IconRotate2, IconTool, IconUser, IconUsers,
 } from '@tabler/icons-react';
@@ -598,7 +598,9 @@ export function SystemConfigPage() {
                   <Card key={team.id} withBorder radius="md" p="sm">
                     <Group justify="space-between">
                       <Group gap="sm">
-                        <Avatar src={getImageUrl(team.imagePath)} radius="xl" size="sm" alt={team.name} />
+                        <Avatar src={getImageUrl(team.imagePath)} radius="xl" size="sm" alt={team.name}>
+                          <IconShield size={14} />
+                        </Avatar>
                         <Box>
                           <Text fw={500} size="sm">{team.name}</Text>
                           <Text size="xs" c="dimmed">{team.abbreviation}</Text>
