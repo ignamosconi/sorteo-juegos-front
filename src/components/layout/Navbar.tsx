@@ -45,7 +45,11 @@ function DragHandle({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => voi
 // ── NavItem ───────────────────────────────────────────────────────────────────
 function NavItem({ to, label, icon: Icon, isOpen }: { to: string; label: string; icon: React.ElementType; isOpen: boolean }) {
   const location = useLocation();
-  const isActive = location.pathname === to || (to !== '/dashboard' && location.pathname.startsWith(to));
+  const isActive = location.pathname === to || (
+    to !== '/dashboard' &&
+    to !== '/admins' &&
+    location.pathname.startsWith(`${to}/`)
+  );
 
   const button = (
     <NavLink to={to} style={{ textDecoration: 'none' }}>
@@ -195,6 +199,7 @@ export function Navbar({ isOpen, onToggle, onClose, isMobile }: { isOpen: boolea
               >
                 <Stack gap={2}>
                   <NavItem to="/admins/me" label="Mi Perfil" icon={IconUser} isOpen={isOpen} />
+                  <NavItem to="/admins" label="Administradores" icon={IconUsers} isOpen={isOpen} />
                   <NavItem to="/system-config" label="Sistema" icon={IconTool} isOpen={isOpen} />
                 </Stack>
               </NavSection>
