@@ -5,8 +5,8 @@ import {
 } from '@mantine/core';
 import {
   IconUser, IconUsers, IconLogout, IconDashboard,
-  IconTrophy, IconSettings, IconCategory,
-  IconChevronRight, IconTool,
+  IconTrophy, IconSettings, IconChevronRight, IconTool,
+  IconHelp,
 } from '@tabler/icons-react';
 import { useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -189,7 +189,7 @@ export function Navbar({ isOpen, onToggle, onClose, isMobile }: { isOpen: boolea
             <Stack gap={2}>
               <NavItem to="/dashboard" label="Inicio" icon={IconDashboard} isOpen={isOpen} />
               <NavItem to="/raffles" label="Sorteos" icon={IconTrophy} isOpen={isOpen} />
-
+              <NavItem to="/faqs" label="FAQs" icon={IconHelp} isOpen={isOpen} />
               <NavSection
                 label="Configuración"
                 icon={IconSettings}
@@ -203,6 +203,8 @@ export function Navbar({ isOpen, onToggle, onClose, isMobile }: { isOpen: boolea
                   <NavItem to="/system-config" label="Sistema" icon={IconTool} isOpen={isOpen} />
                 </Stack>
               </NavSection>
+
+
             </Stack>
           </Box>
 
