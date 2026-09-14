@@ -1,7 +1,7 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   Stack, Text, UnstyledButton, Group, Box, Divider, Image,
-  Loader, Tooltip, Collapse,
+  Loader, Tooltip,
 } from '@mantine/core';
 import {
   IconUser, IconUsers, IconLogout, IconDashboard,
@@ -132,11 +132,21 @@ function NavSection({ label, icon: Icon, isOpen, onToggleNavbar, children, defau
           <IconChevronRight size={12} style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 200ms' }} />
         </Group>
       </UnstyledButton>
-      <Collapse in={expanded} expanded={expanded}>
-        <Box pl="xs">
+
+      {/* Despliegue fluido sin librerías JS externas */}
+      <Box
+        style={{
+          display: 'grid',
+          gridTemplateRows: expanded ? '1fr' : '0fr',
+          transition: 'grid-template-rows 200ms ease, opacity 200ms ease',
+          opacity: expanded ? 1 : 0,
+          overflow: 'hidden',
+        }}
+      >
+        <Box style={{ minHeight: 0 }} pl="xs">
           {children}
         </Box>
-      </Collapse>
+      </Box>
     </Box>
   );
 }
@@ -203,8 +213,6 @@ export function Navbar({ isOpen, onToggle, onClose, isMobile }: { isOpen: boolea
                   <NavItem to="/system-config" label="Sistema" icon={IconTool} isOpen={isOpen} />
                 </Stack>
               </NavSection>
-
-
             </Stack>
           </Box>
 
