@@ -4,6 +4,7 @@ import {
   Title, Text, Button, Group, Stack, Card, Badge, Box, 
   Stepper, Modal, TextInput, ActionIcon, Loader, Center,
   SimpleGrid, NumberInput, Tabs, Divider, SegmentedControl, Paper, Avatar, Tooltip, Checkbox,
+  Table,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
@@ -17,10 +18,11 @@ import { sportApi } from '@/api/sportApi';
 import { defaultSportApi } from '@/api/defaultSportApi';
 import { globalTeamApi } from '@/api/globalTeamApi';
 import { defaultCategoryApi } from '@/api/defaultCategoryApi';
+import { systemConfigApi } from '@/api/systemConfigApi';
 import { notifications } from '@mantine/notifications';
 import type {
   Raffle, RaffleTeam, Sport, SportCategory,
-  SportCategoryGroup, GlobalTeam, DefaultCategory, SportCategoryTeam, DefaultSport,
+  SportCategoryGroup, GlobalTeam, DefaultCategory, SportCategoryTeam, DefaultSport, SystemConfig,
 } from '@/types/api.types';
 import { ImageUploadInput } from '@/components/ui/ImageUploadInput';
 import { getImageUrl } from '@/utils/imageUrl';
@@ -45,6 +47,22 @@ const show429Notification = () => {
     icon: <IconAlertTriangle size={18} />,
   });
 };
+
+function getSequenceSuffix(index: number, sequence: string = 'ALPHA_UPPER'): string {
+  switch (sequence) {
+    case 'NUMERIC':
+      return String(index + 1);
+    case 'ALPHA_LOWER':
+      return String.fromCharCode(97 + index);
+    case 'ROMAN': {
+      const romans = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV'];
+      return romans[index] || String(index + 1);
+    }
+    case 'ALPHA_UPPER':
+    default:
+      return String.fromCharCode(65 + index);
+  }
+}
 
 // ── Paso 1: Pool General de Equipos ──────────────────────────────────────────
 function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void }) {
@@ -738,6 +756,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   const [sports, setSports] = useState<SportWithData[]>([]);
   const [raffleTeams, setRaffleTeams] = useState<RaffleTeam[]>([]);
   const [defaultCategories, setDefaultCategories] = useState<DefaultCategory[]>([]);
+  const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState(false);
   const [activeSport, setActiveSport] = useState<string | null>(null);
@@ -774,11 +793,8 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   const [catError, setCatError] = useState<string | undefined>(undefined);
 
   const [groupCount, setGroupCount] = useState<number>(4);
-  const [capacityMode, setCapacityMode] = useState<'same' | 'custom'>('same');
-  const [groupCapacity, setGroupCapacity] = useState<number>(4);
-  const [groupCapacities, setGroupCapacities] = useState<number[]>([4, 4, 4, 4]);
-  const [nameMode, setNameMode] = useState<'default' | 'custom'>('default');
-  const [groupNames, setGroupNames] = useState<string[]>(['', '', '', '']);
+  const [baseCapacity, setBaseCapacity] = useState<number>(4);
+  const [groupItems, setGroupItems] = useState<{ name: string; capacity: number }[]>([]);
   const [saving, setSaving] = useState(false);
 
   const currentSport = sports.find(s => s.id === activeSport);
@@ -786,13 +802,15 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   const loadInitialData = useCallback(async () => {
     setLoading(true);
     try {
-      const [sportsRaw, defCats, rTeams] = await Promise.all([
+      const [sportsRaw, defCats, rTeams, sysConfig] = await Promise.all([
         sportApi.getByRaffle(raffleId),
         defaultCategoryApi.getAll(),
         raffleTeamApi.getByRaffle(raffleId),
+        systemConfigApi.get(),
       ]);
       setDefaultCategories(defCats);
       setRaffleTeams(rTeams);
+      setSystemConfig(sysConfig);
 
       const sportsWithData = await Promise.all(
         sportsRaw.map(async s => {
@@ -1076,49 +1094,38 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
     } finally { setSaving(false); }
   };
 
-  const handleGroupCountChange = (v: number | string) => {
-    const newCount = Number(v) || 1;
+  const handleGroupConfigChange = (newCount: number, newBaseCap: number) => {
     setGroupCount(newCount);
+    setBaseCapacity(newBaseCap);
 
-    setGroupCapacities(prev => {
-      const next = [...prev];
-      if (newCount > next.length) {
-        for (let i = next.length; i < newCount; i++) next.push(groupCapacity || 4);
-      } else {
-        next.length = newCount;
-      }
-      return next;
-    });
+    const prefix = systemConfig?.defaultGroupPrefix || 'Grupo';
+    const sequence = systemConfig?.defaultGroupSequence || 'ALPHA_UPPER';
 
-    setGroupNames(prev => {
-      const next = [...prev];
-      if (newCount > next.length) {
-        for (let i = next.length; i < newCount; i++) next.push('');
-      } else {
-        next.length = newCount;
-      }
-      return next;
+    setGroupItems(prev => {
+      return Array.from({ length: newCount }).map((_, i) => {
+        const defaultName = `${prefix} ${getSequenceSuffix(i, sequence)}`;
+        const existing = prev[i];
+        return {
+          name: existing?.name || defaultName,
+          capacity: existing?.capacity || newBaseCap,
+        };
+      });
     });
   };
 
+  const handleOpenGroupModal = () => {
+    const initCount = Math.min(4, maxGroupsAllowed || 4);
+    const initCap = 4;
+    handleGroupConfigChange(initCount, initCap);
+    openGroupModal();
+  };
+
   const handleCreateGroups = async () => {
-    if (!activeSport) return;
+    if (!activeSport || groupItems.length === 0) return;
     setSaving(true);
     const catId = currentSport?.hasCategories ? activeCategoryVal : null;
     try {
-      const groupPayload = Array.from({ length: groupCount }).map((_, i) => {
-        const defaultName = `Grupo ${String.fromCharCode(65 + i)}`;
-        const customName = groupNames[i]?.trim();
-        const finalName = nameMode === 'default' ? defaultName : (customName || defaultName);
-        const finalCap = capacityMode === 'same' ? groupCapacity : (groupCapacities[i] || 4);
-
-        return {
-          name: finalName,
-          capacity: finalCap,
-        };
-      });
-
-      await sportApi.createGroups(activeSport, groupPayload, catId);
+      await sportApi.createGroups(activeSport, groupItems, catId);
       await refreshSportData();
       closeGroupModal();
     } catch (err: any) {
@@ -1189,10 +1196,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
 
   const assignedCount = assignedTeams.length;
   const maxGroupsAllowed = assignedCount > 0 ? assignedCount : 20;
-  const calculatedTotalCapacity = capacityMode === 'same'
-    ? groupCount * groupCapacity
-    : groupCapacities.reduce((a, b) => a + b, 0);
-
+  const calculatedTotalCapacity = groupItems.reduce((acc, g) => acc + (g.capacity || 0), 0);
   const capacityExceeds = assignedCount > 0 && calculatedTotalCapacity > assignedCount;
 
   return (
@@ -1393,16 +1397,13 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
                     Borrar todos
                   </Button>
                 )}
-                <Button size="xs" leftSection={<IconPlus size={14} />} color="orange" disabled={assignedTeams.length === 0} onClick={() => {
-                  const initCount = Math.min(4, maxGroupsAllowed);
-                  setGroupCount(initCount);
-                  setGroupCapacity(4);
-                  setGroupCapacities(Array(initCount).fill(4));
-                  setCapacityMode('same');
-                  setNameMode('default');
-                  setGroupNames(Array(initCount).fill(''));
-                  openGroupModal();
-                }}>
+                <Button
+                  size="xs"
+                  leftSection={<IconPlus size={14} />}
+                  color="orange"
+                  disabled={assignedTeams.length === 0}
+                  onClick={handleOpenGroupModal}
+                >
                   Crear grupos
                 </Button>
               </Group>
@@ -1661,124 +1662,144 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
         </Stack>
       </Modal>
 
-      <Modal opened={groupModalOpened} onClose={closeGroupModal} title="Configurar y Crear Grupos" size="lg" centered>
+      {/* Modal Creación de Grupos (UX Rediseñada) */}
+      <Modal
+        opened={groupModalOpened}
+        onClose={closeGroupModal}
+        title="Configurar Grupos"
+        size="lg"
+        centered
+      >
         <Stack gap="md">
-          <Paper withBorder p="md" radius="md">
-            <Stack gap="md">
-              <Stack gap="xs">
-                <Text fw={600} size="sm">1. Cantidad de grupos</Text>
-                <NumberInput
-                  data-autofocus
-                  placeholder="Ej: 4"
-                  value={groupCount}
-                  min={1}
-                  max={maxGroupsAllowed}
-                  onChange={handleGroupCountChange}
-                  description={assignedCount > 0 ? `Máximo ${maxGroupsAllowed} grupos (según inscriptos)` : undefined}
-                />
-              </Stack>
-
-              <Divider />
-
-              <Stack gap="xs">
-                <Group justify="space-between">
-                  <Text fw={600} size="sm">2. Capacidad de equipos por grupo</Text>
-                  <SegmentedControl
-                    size="xs"
-                    value={capacityMode}
-                    onChange={v => setCapacityMode(v as 'same' | 'custom')}
-                    data={[
-                      { label: 'Misma capacidad', value: 'same' },
-                      { label: 'Diferente por grupo', value: 'custom' },
-                    ]}
-                  />
-                </Group>
-
-                {capacityMode === 'same' ? (
-                  <NumberInput
-                    label="Equipos por grupo"
-                    value={groupCapacity}
-                    min={1}
-                    max={assignedCount > 0 ? assignedCount : 50}
-                    onChange={v => setGroupCapacity(Number(v) || 1)}
-                  />
-                ) : (
-                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                    {Array.from({ length: groupCount }).map((_, i) => (
-                      <NumberInput
-                        key={i}
-                        label={`Capacidad ${nameMode === 'default' ? `Grupo ${String.fromCharCode(65 + i)}` : (groupNames[i] || `Grupo ${i + 1}`)}`}
-                        value={groupCapacities[i] ?? groupCapacity}
-                        min={1}
-                        max={assignedCount > 0 ? assignedCount : 50}
-                        onChange={v => {
-                          const val = Number(v) || 1;
-                          setGroupCapacities(prev => { const n = [...prev]; n[i] = val; return n; });
-                        }}
-                      />
-                    ))}
-                  </SimpleGrid>
-                )}
-
-                <Box style={{ minHeight: 18 }}>
-                  <Text
-                    size="xs"
-                    c="red"
-                    fw={500}
-                    style={{
-                      visibility: capacityExceeds ? 'visible' : 'hidden',
-                      transition: 'opacity 0.2s ease',
-                    }}
-                  >
-                    Atención: La suma total de capacidad ({calculatedTotalCapacity} cupos) supera la cantidad de inscriptos ({assignedCount}).
-                  </Text>
-                </Box>
-              </Stack>
-
-              <Divider />
-
-              <Stack gap="xs">
-                <Group justify="space-between">
-                  <Text fw={600} size="sm">3. Nombres de los grupos</Text>
-                  <SegmentedControl
-                    size="xs"
-                    value={nameMode}
-                    onChange={v => setNameMode(v as 'default' | 'custom')}
-                    data={[
-                      { label: 'Automático', value: 'default' },
-                      { label: 'Personalizado', value: 'custom' },
-                    ]}
-                  />
-                </Group>
-
-                {nameMode === 'default' ? (
-                  <Text size="xs" c="dimmed">
-                    Los grupos se nombrarán automáticamente: {Array.from({ length: groupCount }).map((_, i) => `Grupo ${String.fromCharCode(65 + i)}`).join(', ')}.
-                  </Text>
-                ) : (
-                  <Stack gap="xs" mt="xs">
-                    {Array.from({ length: groupCount }).map((_, i) => (
-                      <TextInput
-                        key={i}
-                        label={`Nombre del grupo ${i + 1}`}
-                        placeholder={`Ej: Grupo ${String.fromCharCode(65 + i)}`}
-                        value={groupNames[i] ?? ''}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setGroupNames(prev => { const n = [...prev]; n[i] = val; return n; });
-                        }}
-                        onKeyDown={e => e.key === 'Enter' && void handleCreateGroups()}
-                      />
-                    ))}
-                  </Stack>
-                )}
-              </Stack>
-            </Stack>
+          <Paper
+            withBorder
+            p="sm"
+            radius="md"
+            bg="light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))"
+          >
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+              <NumberInput
+                label="Cantidad de grupos"
+                placeholder="Ej: 4"
+                value={groupCount}
+                min={1}
+                max={maxGroupsAllowed}
+                onChange={v => handleGroupConfigChange(Number(v) || 1, baseCapacity)}
+              />
+              <NumberInput
+                label="Capacidad base por grupo"
+                placeholder="Ej: 4"
+                value={baseCapacity}
+                min={1}
+                max={assignedCount > 0 ? assignedCount : 50}
+                onChange={v => {
+                  const newCap = Number(v) || 1;
+                  setBaseCapacity(newCap);
+                  setGroupItems(prev => prev.map(g => ({ ...g, capacity: newCap })));
+                }}
+              />
+            </SimpleGrid>
           </Paper>
 
-          <Group justify="flex-end" mt="sm">
-            <Button variant="subtle" onClick={closeGroupModal}>Cancelar</Button>
-            <Button color="orange" loading={saving} onClick={() => void handleCreateGroups()}>
+          <Paper withBorder p="xs" radius="md">
+            <Group justify="space-between" align="center">
+              <Group gap="lg">
+                <Box>
+                  <Text size="xs" c="dimmed">Equipos inscriptos</Text>
+                  <Text fw={700} size="sm">{assignedCount}</Text>
+                </Box>
+                <Divider orientation="vertical" />
+                <Box>
+                  <Text size="xs" c="dimmed">Capacidad total</Text>
+                  <Text fw={700} size="sm" c={capacityExceeds ? 'red' : 'green'}>
+                    {calculatedTotalCapacity} cupos
+                  </Text>
+                </Box>
+              </Group>
+
+              {capacityExceeds ? (
+                <Badge color="red" variant="light" leftSection={<IconAlertTriangle size={12} />}>
+                  Sobra capacidad (+{calculatedTotalCapacity - assignedCount})
+                </Badge>
+              ) : calculatedTotalCapacity < assignedCount ? (
+                <Badge color="orange" variant="light">
+                  Faltan cupos ({assignedCount - calculatedTotalCapacity})
+                </Badge>
+              ) : (
+                <Badge color="green" variant="light" leftSection={<IconCheck size={12} />}>
+                  Cupos exactos
+                </Badge>
+              )}
+            </Group>
+          </Paper>
+
+          <Box>
+            <Text size="xs" fw={600} c="dimmed" mb={6}>
+              VISTA PREVIA Y PERSONALIZACIÓN DE GRUPOS
+            </Text>
+            <Paper withBorder radius="md" style={{ height: 220, overflowY: 'auto' }}>
+              <Table verticalSpacing="xs" horizontalSpacing="sm" highlightOnHover stickyHeader>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th style={{ width: 40 }}>#</Table.Th>
+                    <Table.Th>Nombre del grupo</Table.Th>
+                    <Table.Th style={{ width: 140 }}>Capacidad</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {groupItems.map((item, idx) => (
+                    <Table.Tr key={idx}>
+                      <Table.Td>
+                        <Text size="xs" c="dimmed" fw={600}>{idx + 1}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <TextInput
+                          size="xs"
+                          value={item.name}
+                          placeholder={`${systemConfig?.defaultGroupPrefix || 'Grupo'} ${getSequenceSuffix(idx, systemConfig?.defaultGroupSequence)}`}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setGroupItems(prev => {
+                              const copy = [...prev];
+                              copy[idx] = { ...copy[idx], name: val };
+                              return copy;
+                            });
+                          }}
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <NumberInput
+                          size="xs"
+                          value={item.capacity}
+                          min={1}
+                          max={50}
+                          onChange={v => {
+                            const val = Number(v) || 1;
+                            setGroupItems(prev => {
+                              const copy = [...prev];
+                              copy[idx] = { ...copy[idx], capacity: val };
+                              return copy;
+                            });
+                          }}
+                        />
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Paper>
+          </Box>
+
+          <Group justify="flex-end" mt="xs">
+            <Button variant="subtle" onClick={closeGroupModal}>
+              Cancelar
+            </Button>
+            <Button
+              color="orange"
+              loading={saving}
+              disabled={calculatedTotalCapacity !== assignedCount}
+              onClick={() => void handleCreateGroups()}
+            >
               Crear {groupCount} {groupCount === 1 ? 'grupo' : 'grupos'}
             </Button>
           </Group>
