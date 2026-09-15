@@ -2,106 +2,267 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box, Text, Button, Group, Stack, Card, Center, Loader,
-  Modal, SimpleGrid, Badge, Title,
+  Modal, SimpleGrid, Badge, Title, Paper, Avatar, Divider, Table,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconArrowLeft, IconArrowBackUp, IconEye } from '@tabler/icons-react';
+import {
+  IconArrowLeft, IconArrowBackUp, IconEye, IconTrophy,
+  IconShield, IconSparkles, IconPlayerPlay,
+} from '@tabler/icons-react';
 import { drawApi } from '@/api/drawApi';
 import { sportApi } from '@/api/sportApi';
 import { notifications } from '@mantine/notifications';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { getImageUrl } from '@/utils/imageUrl';
 import type {
-  Raffle, Sport, SportCategory, FullDrawState, RaffleTeam, SportCategoryGroup,
+  Raffle, Sport, SportCategory, FullDrawState, RaffleTeam,
+  SportCategoryGroup, DrawResult,
 } from '@/types/api.types';
 
-// ── SlotMachine ───────────────────────────────────────────────────────────────
-interface SlotMachineProps {
-  items: RaffleTeam[];
+const notifyPublicUpdate = () => {
+  window.dispatchEvent(new CustomEvent('raffle_draw_updated'));
+  if ('BroadcastChannel' in window) {
+    const bc = new BroadcastChannel('raffle_draw_channel');
+    bc.postMessage('updated');
+    bc.close();
+  }
+};
+
+// ── Visor Cilindro Tragaperras 3D Continuo ──────────────────────────────────
+interface Cylinder3DProps<T> {
+  items: T[];
   spinning: boolean;
-  result: RaffleTeam | null;
-  onSpin: () => void;
+  targetIndex: number | null;
+  onLockedIn: () => void;
+  renderItem: (item: T) => React.ReactNode;
 }
 
-function SlotMachine({ items, spinning, result, onSpin }: SlotMachineProps) {
-  const [displayIdx, setDisplayIdx] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const frameRef = useRef(0);
+function Cylinder3D<T>({
+  items,
+  spinning,
+  targetIndex,
+  onLockedIn,
+  renderItem,
+}: Cylinder3DProps<T>) {
+  const angleRef = useRef(0);
+  const speedRef = useRef(0);
+  const animFrameRef = useRef<number | null>(null);
+  const lockedTriggeredRef = useRef(false);
+
+  const [displayAngle, setDisplayAngle] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+
+  const faceCount = Math.max(14, items.length > 0 ? Math.ceil(14 / items.length) * items.length : 14);
+  const faceAngle = 360 / faceCount;
+  const itemHeight = 48;
+  const radius = Math.round((itemHeight / 2) / Math.tan(Math.PI / faceCount));
+
+  const extendedItems: T[] = [];
+  if (items.length > 0) {
+    while (extendedItems.length < faceCount) {
+      extendedItems.push(...items);
+    }
+  }
+  const finalItems = extendedItems.slice(0, faceCount);
 
   useEffect(() => {
-    if (spinning && items.length > 0) {
-      frameRef.current = 0;
-      intervalRef.current = setInterval(() => {
-        frameRef.current++;
-        setDisplayIdx(Math.floor(Math.random() * items.length));
-      }, 80);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+    if (!spinning && targetIndex === null) {
+      angleRef.current = Math.round(angleRef.current / faceAngle) * faceAngle;
+      setDisplayAngle(angleRef.current);
     }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [spinning, items]);
+  }, [items, spinning, targetIndex, faceAngle]);
 
-  const displayed = result ?? (items.length > 0 ? items[displayIdx % items.length] : null);
+  useEffect(() => {
+    setIsLocked(false);
+    lockedTriggeredRef.current = false;
+    let targetAngle: number | null = null;
+
+    const animate = () => {
+      if (spinning && targetIndex === null) {
+        speedRef.current = Math.min(speedRef.current + 0.2, 3.8);
+        angleRef.current = (angleRef.current + speedRef.current) % 360;
+      } else if (targetIndex !== null && items.length > 0) {
+        const realTargetFace = targetIndex % faceCount;
+        const targetFaceAngle = (360 - realTargetFace * faceAngle) % 360;
+
+        if (targetAngle === null) {
+          const currentModulo = angleRef.current % 360;
+          let diff = targetFaceAngle - currentModulo;
+          if (diff <= 0) diff += 360;
+          targetAngle = angleRef.current + diff + 360 * 2;
+        }
+
+        const remaining = targetAngle - angleRef.current;
+        if (remaining > 0.3) {
+          speedRef.current = Math.max(remaining * 0.045, 0.3);
+          angleRef.current += speedRef.current;
+        } else {
+          angleRef.current = targetAngle;
+          setDisplayAngle(targetAngle);
+          setIsLocked(true);
+
+          if (!lockedTriggeredRef.current) {
+            lockedTriggeredRef.current = true;
+            setTimeout(() => {
+              onLockedIn();
+            }, 1000);
+          }
+          return;
+        }
+      } else {
+        speedRef.current = 0;
+      }
+
+      setDisplayAngle(angleRef.current);
+      animFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animFrameRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [spinning, targetIndex, faceAngle, faceCount, items, onLockedIn]);
 
   return (
-    <Stack align="center" gap="lg">
-      <Card
-        withBorder
-        radius="xl"
-        p={0}
+    <Box
+      style={{
+        position: 'relative',
+        width: '100%',
+        maxWidth: 400,
+        height: 220,
+        margin: '0 auto',
+        perspective: '900px',
+        overflow: 'hidden',
+        borderRadius: '16px',
+        border: isLocked
+          ? '3px solid var(--mantine-color-green-5)'
+          : spinning
+          ? '3px solid var(--mantine-color-orange-5)'
+          : '3px solid var(--mantine-color-default-border)',
+        boxShadow: isLocked
+          ? '0 0 25px rgba(40, 199, 111, 0.4)'
+          : spinning
+          ? '0 0 25px rgba(245, 167, 5, 0.4)'
+          : 'var(--mantine-shadow-md)',
+        transition: 'border-color 300ms, box-shadow 300ms',
+        background: 'light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-8))',
+        WebkitFontSmoothing: 'antialiased',
+        textRendering: 'optimizeLegibility',
+      }}
+    >
+      {/* Sombra de curvatura 3D superior e inferior */}
+      <Box
+        style={{
+          position: 'absolute',
+          top: 0, left: 0, right: 0, height: 70,
+          background: 'linear-gradient(to bottom, light-dark(rgba(240,240,240,0.98), rgba(20,20,20,0.98)), transparent)',
+          zIndex: 5, pointerEvents: 'none',
+        }}
+      />
+      <Box
+        style={{
+          position: 'absolute',
+          bottom: 0, left: 0, right: 0, height: 70,
+          background: 'linear-gradient(to top, light-dark(rgba(240,240,240,0.98), rgba(20,20,20,0.98)), transparent)',
+          zIndex: 5, pointerEvents: 'none',
+        }}
+      />
+
+      {/* Selector central con animación Lock-In */}
+      <Box
+        style={{
+          position: 'absolute',
+          top: '50%', left: 12, right: 12, height: 56,
+          marginTop: -28,
+          borderRadius: '10px',
+          border: isLocked ? '2px solid var(--mantine-color-green-5)' : '2px solid var(--mantine-color-orange-5)',
+          background: isLocked ? 'rgba(40, 199, 111, 0.12)' : 'rgba(245, 167, 5, 0.08)',
+          zIndex: 4, pointerEvents: 'none',
+          boxShadow: isLocked ? '0 0 15px rgba(40,199,111,0.5)' : 'none',
+          animation: isLocked ? 'lockInGrip 450ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none',
+        }}
+      />
+      <style>{`
+        @keyframes lockInGrip {
+          0% { transform: scale(1.08); }
+          50% { transform: scale(0.95); }
+          100% { transform: scale(1.0); }
+        }
+      `}</style>
+
+      {/* Tambor 3D */}
+      <Box
         style={{
           width: '100%',
-          maxWidth: 320,
-          height: 160,
-          overflow: 'hidden',
-          border: spinning ? '3px solid var(--mantine-color-orange-5)' : '3px solid var(--mantine-color-default-border)',
-          transition: 'border-color 300ms',
-          cursor: items.length > 0 && !result ? 'pointer' : 'default',
+          height: '100%',
+          position: 'absolute',
+          transformStyle: 'preserve-3d',
+          transform: `rotateX(${displayAngle}deg)`,
         }}
-        onClick={() => { if (items.length > 0 && !result) onSpin(); }}
       >
-        <Center h="100%">
-          {!displayed ? (
-            <Text c="dimmed">Sin equipos</Text>
-          ) : (
-            <Stack align="center" gap="xs" p="md">
-              <Text fw={900} size="xl" ta="center" style={{ transition: spinning ? 'none' : 'all 300ms' }}>
-                {displayed.abbreviation}
-              </Text>
-              <Text size="sm" ta="center" c="dimmed" lineClamp={2}>
-                {displayed.name}
-              </Text>
-            </Stack>
-          )}
-        </Center>
-      </Card>
-
-      {!result && (
-        <Text size="xs" c="dimmed" ta="center">
-          {spinning ? 'Tocá para detener...' : 'Tocá el cilindro para sortear'}
-        </Text>
-      )}
-
-      {result && (
-        <Badge color="green" size="lg" variant="light">¡{result.name} sorteado!</Badge>
-      )}
-    </Stack>
+        {finalItems.map((item, idx) => {
+          const itemAngle = idx * faceAngle;
+          return (
+            <Box
+              key={idx}
+              style={{
+                position: 'absolute',
+                left: '5%',
+                top: '50%',
+                width: '90%',
+                height: itemHeight,
+                marginTop: -itemHeight / 2,
+                backfaceVisibility: 'hidden',
+                transform: `rotateX(${itemAngle}deg) translateZ(${radius}px)`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Paper
+                withBorder
+                radius="md"
+                p="xs"
+                w="100%"
+                style={{
+                  background: 'light-dark(var(--mantine-color-white), var(--mantine-color-dark-6))',
+                  textAlign: 'center',
+                  boxShadow: 'var(--mantine-shadow-xs)',
+                }}
+              >
+                {renderItem(item)}
+              </Paper>
+            </Box>
+          );
+        })}
+      </Box>
+    </Box>
   );
 }
 
-// ── Página principal ──────────────────────────────────────────────────────────
+// ── Página Principal de Sorteo ─────────────────────────────────────────────
 export function DrawPage() {
   const { drawSlug } = useParams<{ drawSlug: string }>();
   const navigate = useNavigate();
+
   const [raffle, setRaffle] = useState<Raffle | null>(null);
   const [sports, setSports] = useState<Sport[]>([]);
   const [sportsWithCategories, setSportsWithCategories] = useState<Map<string, SportCategory[]>>(new Map());
   const [fullState, setFullState] = useState<FullDrawState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [spinning, setSpinning] = useState(false);
-  const [drawnTeam, setDrawnTeam] = useState<RaffleTeam | null>(null);
-  const [, setDrawnGroup] = useState<SportCategoryGroup | null>(null);
-  const [phase, setPhase] = useState<'select_sport' | 'select_category' | 'draw_team' | 'draw_group' | 'done'>('select_sport');
+
   const [selectedSport, setSelectedSport] = useState<Sport | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<SportCategory | null>(null);
+  const [phase, setPhase] = useState<'select_sport' | 'select_category' | 'drawing'>('select_sport');
+
+  const [drawingStage, setDrawingStage] = useState<'team' | 'group'>('team');
+  const [spinning, setSpinning] = useState(false);
+  const [targetIndex, setTargetIndex] = useState<number | null>(null);
+  const [drawnTeam, setDrawnTeam] = useState<RaffleTeam | null>(null);
+  const [drawnResult, setDrawnResult] = useState<DrawResult | null>(null);
+
+  const [teamModalOpened, { open: openTeamModal, close: closeTeamModal }] = useDisclosure(false);
+  const [resultModalOpened, { open: openResultModal, close: closeResultModal }] = useDisclosure(false);
   const [undoOpened, { open: openUndo, close: closeUndo }] = useDisclosure(false);
   const [undoing, setUndoing] = useState(false);
 
@@ -115,49 +276,44 @@ export function DrawPage() {
         drawApi.getState(r.id),
       ]);
       const catMap = new Map<string, SportCategory[]>();
-      await Promise.all(sportsData.map(async s => {
-        const cats = await sportApi.getCategories(s.id);
-        catMap.set(s.id, cats);
-      }));
+      await Promise.all(
+        sportsData.map(async (s) => {
+          const cats = await sportApi.getCategories(s.id);
+          catMap.set(s.id, cats);
+        })
+      );
       setSports(sportsData);
       setSportsWithCategories(catMap);
       setFullState(state);
 
-      // Restore state
-      if (state?.state?.phase === 'picking_team' && state.state.currentSportId) {
-        const sport = sportsData.find(s => s.id === state.state!.currentSportId);
+      if (state?.state?.currentSportId) {
+        const sport = sportsData.find((s) => s.id === state.state!.currentSportId);
         const cat = state.state.currentSportCategoryId
-          ? catMap.get(state.state.currentSportId!)?.find(c => c.id === state.state!.currentSportCategoryId)
+          ? catMap.get(state.state.currentSportId!)?.find((c) => c.id === state.state!.currentSportCategoryId)
           : null;
         setSelectedSport(sport ?? null);
         setSelectedCategory(cat ?? null);
-        setPhase('draw_team');
-      } else if (state?.state?.phase === 'picking_group') {
-        const sport = sportsData.find(s => s.id === state.state!.currentSportId);
-        const cat = state.state.currentSportCategoryId
-          ? catMap.get(state.state.currentSportId!)?.find(c => c.id === state.state!.currentSportCategoryId)
-          : null;
-        setSelectedSport(sport ?? null);
-        setSelectedCategory(cat ?? null);
-        setDrawnTeam(state.state.drawnTeam);
-        setPhase('draw_group');
+        setPhase('drawing');
+        setDrawingStage(state.state.phase === 'picking_group' ? 'group' : 'team');
+        if (state.state.drawnTeam) {
+          setDrawnTeam(state.state.drawnTeam);
+        }
       } else {
         setPhase('select_sport');
       }
     } catch {
       notifications.show({ message: 'Error al cargar el sorteo', color: 'red' });
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, [drawSlug]);
 
-  useEffect(() => { void loadAll(); }, [loadAll]);
+  useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
 
-  const remainingSports = sports.filter(s => {
-    const cats = sportsWithCategories.get(s.id) ?? [];
-    if (cats.length === 0) {
-      return true;
-    }
-    return cats.some(() => true);
-  });
+  const remainingTeams = (fullState?.remainingTeams ?? []) as RaffleTeam[];
+  const remainingGroups = (fullState?.remainingGroups ?? []) as SportCategoryGroup[];
 
   const handleSelectSport = async (sport: Sport) => {
     const cats = sportsWithCategories.get(sport.id) ?? [];
@@ -166,7 +322,8 @@ export function DrawPage() {
       const state = await drawApi.selectContext(raffle!.id, sport.id);
       setFullState(state);
       setDrawnTeam(null);
-      setPhase('draw_team');
+      setDrawingStage('team');
+      setPhase('drawing');
     } else {
       setPhase('select_category');
     }
@@ -177,50 +334,78 @@ export function DrawPage() {
     const state = await drawApi.selectContext(raffle!.id, selectedSport!.id, cat.id);
     setFullState(state);
     setDrawnTeam(null);
-    setPhase('draw_team');
+    setDrawingStage('team');
+    setPhase('drawing');
   };
 
-  const handleSpinTeam = async () => {
-    if (spinning) {
+  // ── 1. Sorteo de Equipo ──
+  const handleStartSpin = () => {
+    setSpinning(true);
+    setTargetIndex(null);
+  };
+
+  const handleDrawTeam = async () => {
+    try {
+      const res = await drawApi.drawTeam(raffle!.id);
+      const idx = remainingTeams.findIndex((t) => t.id === res.team.id);
+      setDrawnTeam(res.team);
+      setTargetIndex(idx >= 0 ? idx : 0);
+    } catch (err: any) {
       setSpinning(false);
-      try {
-        const res = await drawApi.drawTeam(raffle!.id);
-        setDrawnTeam(res.team);
-        const newState = await drawApi.getState(raffle!.id);
-        setFullState(newState);
-        setPhase('draw_group');
-      } catch {
-        notifications.show({ message: 'Error al sortear equipo', color: 'red' });
-      }
-    } else {
-      setSpinning(true);
+      notifications.show({
+        message: err?.response?.data?.message || 'Error al sortear equipo',
+        color: 'red',
+      });
     }
   };
 
-  const handleSpinGroup = async () => {
-    if (spinning) {
+  const handleTeamLockedIn = () => {
+    setSpinning(false);
+    openTeamModal();
+  };
+
+  // ── 2. Sorteo de Grupo ──
+  const handlePrepareGroupDraw = () => {
+    closeTeamModal();
+    setDrawingStage('group');
+    setTargetIndex(null);
+  };
+
+  const handleDrawGroup = async () => {
+    handleStartSpin();
+    try {
+      const res = await drawApi.drawGroup(raffle!.id);
+      const idx = remainingGroups.findIndex((g) => g.id === res.result.sportCategoryGroupId);
+      setDrawnResult(res.result);
+      setTargetIndex(idx >= 0 ? idx : 0);
+    } catch (err: any) {
       setSpinning(false);
-      try {
-        const res = await drawApi.drawGroup(raffle!.id);
-        const group = res.result.sportCategoryGroup;
-        setDrawnGroup(group);
-        notifications.show({ message: `${drawnTeam?.abbreviation} → ${group.name}`, color: 'green' });
-        if (res.isDone) {
-          setPhase('select_sport');
-          setSelectedSport(null);
-          setSelectedCategory(null);
-        } else {
-          setDrawnTeam(null);
-          setDrawnGroup(null);
-          const newState = await drawApi.getState(raffle!.id);
-          setFullState(newState);
-          setPhase('draw_team');
-        }
-      } catch {
-        notifications.show({ message: 'Error al sortear grupo', color: 'red' });
-      }
-    } else {
-      setSpinning(true);
+      notifications.show({
+        message: err?.response?.data?.message || 'Error al sortear grupo',
+        color: 'red',
+      });
+    }
+  };
+
+  const handleGroupLockedIn = async () => {
+    setSpinning(false);
+    const newState = await drawApi.getState(raffle!.id);
+    setFullState(newState);
+    notifyPublicUpdate(); // Sincroniza la vista pública
+    openResultModal();
+  };
+
+  const handleNextTeamDraw = () => {
+    closeResultModal();
+    setDrawnTeam(null);
+    setDrawnResult(null);
+    setTargetIndex(null);
+    setDrawingStage('team');
+
+    if (remainingTeams.length === 0) {
+      setSelectedSport(null);
+      setSelectedCategory(null);
+      setPhase('select_sport');
     }
   };
 
@@ -230,156 +415,388 @@ export function DrawPage() {
       const newState = await drawApi.undo(raffle!.id);
       setFullState(newState);
       setDrawnTeam(null);
-      setDrawnGroup(null);
-      setPhase('draw_team');
+      setDrawnResult(null);
+      setTargetIndex(null);
+      setSpinning(false);
+      setDrawingStage('team');
+      notifyPublicUpdate();
       closeUndo();
       notifications.show({ message: 'Último sorteo deshecho', color: 'blue' });
     } catch {
-      notifications.show({ message: 'Error al deshacer', color: 'red' });
-    } finally { setUndoing(false); }
+      notifications.show({ message: 'Error al deshacer el sorteo', color: 'red' });
+    } finally {
+      setUndoing(false);
+    }
   };
 
-  const remainingTeams = (fullState?.remainingTeams ?? []) as RaffleTeam[];
-  const remainingGroups = (fullState?.remainingGroups ?? []) as SportCategoryGroup[];
-  const totalResults = (fullState?.results ?? []).length;
-  const allDone = sports.length > 0 && remainingSports.length === 0;
+  const selectedGroup = drawnResult?.sportCategoryGroup;
+  const groupResults = (fullState?.results ?? [])
+    .filter((r) => r.sportCategoryGroupId === selectedGroup?.id)
+    .sort((a, b) => a.position - b.position);
 
   if (loading) return <Center h="100dvh"><Loader color="orange" size="lg" /></Center>;
   if (!raffle) return <Center h="100dvh"><Text>Sorteo no encontrado.</Text></Center>;
 
   return (
-    <Box mih="100dvh" style={{ background: 'var(--mantine-color-body)', maxWidth: 480, margin: '0 auto' }}>
-      {/* Header */}
-      <Box p="md" style={{ borderBottom: '1px solid var(--mantine-color-default-border)', position: 'sticky', top: 0, background: 'var(--mantine-color-body)', zIndex: 10 }}>
-        <Group justify="space-between">
+    <Box mih="100dvh" style={{ background: 'var(--mantine-color-body)' }}>
+      {/* Navbar Superior */}
+      <Box
+        p="md"
+        style={{
+          borderBottom: '1px solid var(--mantine-color-default-border)',
+          position: 'sticky', top: 0,
+          background: 'var(--mantine-color-body)', zIndex: 10,
+        }}
+      >
+        <Group justify="space-between" maw={1000} mx="auto">
           <Group gap="xs">
-            <Button size="xs" variant="subtle" leftSection={<IconArrowLeft size={14} />} onClick={() => navigate('/raffles')}>
+            <Button
+              size="xs"
+              variant="subtle"
+              leftSection={<IconArrowLeft size={14} />}
+              onClick={() => navigate('/raffles')}
+            >
               Panel
             </Button>
+            <Title order={4}>{raffle.name}</Title>
           </Group>
-          <Text fw={600} size="sm" ta="center" style={{ flex: 1 }}>{raffle.name}</Text>
+
           <Group gap="xs">
+            <ThemeToggle />
             {raffle.publicSlug && (
-              <Button size="xs" variant="subtle" leftSection={<IconEye size={14} />}
-                onClick={() => window.open(`/s/${raffle.publicSlug}`, '_blank')}>
-                Ver tablas
+              <Button
+                size="xs"
+                variant="light"
+                color="orange"
+                leftSection={<IconEye size={14} />}
+                onClick={() => window.open(`/s/${raffle.publicSlug}`, '_blank')}
+              >
+                Ver tablas públicas
               </Button>
             )}
           </Group>
         </Group>
-        {totalResults > 0 && (
-          <Group justify="center" mt="xs">
-            <Badge color="orange" variant="light">{totalResults} sorteos realizados</Badge>
-          </Group>
-        )}
       </Box>
 
-      <Stack p="md" gap="lg">
-        {/* All done */}
-        {allDone ? (
-          <Card withBorder radius="xl" p="xl" ta="center">
-            <Stack align="center" gap="md">
-              <Text size="3rem">🎉</Text>
-              <Title order={3}>¡Sorteo completado!</Title>
-              <Text c="dimmed">Todos los equipos han sido sorteados en sus grupos.</Text>
-              {raffle.publicSlug && (
-                <Button color="orange" leftSection={<IconEye size={16} />}
-                  onClick={() => window.open(`/s/${raffle.publicSlug}`, '_blank')}>
-                  Ver resultados finales
+      {/* Contenedor Principal */}
+      <Box maw={600} mx="auto" p="md">
+        <Stack gap="lg">
+          {phase === 'select_sport' ? (
+            <Card withBorder radius="lg" p="xl">
+              <Stack gap="md">
+                <Text fw={700} ta="center" size="lg">Seleccioná un Deporte para Sortear</Text>
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                  {sports.map((s) => (
+                    <Card
+                      key={s.id}
+                      withBorder
+                      radius="md"
+                      p="lg"
+                      ta="center"
+                      style={{ cursor: 'pointer', transition: 'transform 150ms' }}
+                      onClick={() => void handleSelectSport(s)}
+                    >
+                      <Text fw={800} size="xl">{s.name.toUpperCase()}</Text>
+                    </Card>
+                  ))}
+                </SimpleGrid>
+              </Stack>
+            </Card>
+          ) : phase === 'select_category' ? (
+            <Card withBorder radius="lg" p="xl">
+              <Stack gap="md">
+                <Button variant="subtle" size="xs" onClick={() => setPhase('select_sport')}>
+                  ← Volver a deportes
                 </Button>
-              )}
-            </Stack>
-          </Card>
-        ) : phase === 'select_sport' ? (
-          <Stack>
-            <Text fw={600} ta="center">Seleccioná un deporte</Text>
-            <SimpleGrid cols={2}>
-              {sports.map(s => (
-                <Card key={s.id} withBorder radius="md" p="lg" ta="center"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => void handleSelectSport(s)}>
-                  <Text fw={700} size="xl">{s.name.slice(0, 3).toUpperCase()}</Text>
-                  <Text size="xs" c="dimmed">{s.name}</Text>
-                </Card>
-              ))}
-            </SimpleGrid>
-          </Stack>
-        ) : phase === 'select_category' ? (
-          <Stack>
-            <Button variant="subtle" size="sm" onClick={() => { setSelectedSport(null); setPhase('select_sport'); }}>
-              ← Volver
-            </Button>
-            <Text fw={600} ta="center">Seleccioná una categoría — {selectedSport?.name}</Text>
-            <SimpleGrid cols={2}>
-              {(sportsWithCategories.get(selectedSport?.id ?? '') ?? []).map(cat => (
-                <Card key={cat.id} withBorder radius="md" p="lg" ta="center"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => void handleSelectCategory(cat)}>
-                  <Text fw={600}>{cat.name}</Text>
-                </Card>
-              ))}
-            </SimpleGrid>
-          </Stack>
-        ) : phase === 'draw_team' ? (
-          <Stack>
-            <Text fw={600} ta="center" size="lg">
-              Eligiendo equipo — {selectedSport?.name}{selectedCategory ? ` ${selectedCategory.name}` : ''}
-            </Text>
-            <Text size="sm" c="dimmed" ta="center">{remainingTeams.length} equipos restantes</Text>
-            <SlotMachine
-              items={remainingTeams}
-              spinning={spinning}
-              result={null}
-              onSpin={() => void handleSpinTeam()}
-            />
-            {spinning && (
-              <Button size="lg" color="orange" onClick={() => void handleSpinTeam()}>
-                ¡Parar!
-              </Button>
-            )}
-            {!spinning && (
-              <Button size="lg" color="orange" onClick={() => void handleSpinTeam()}>
-                Girar
-              </Button>
-            )}
-          </Stack>
-        ) : phase === 'draw_group' ? (
-          <Stack>
-            <Text fw={600} ta="center" size="lg">
-              Sorteando grupo para {drawnTeam?.abbreviation}
-            </Text>
-            <Text size="sm" c="dimmed" ta="center">{remainingGroups.length} grupos disponibles</Text>
-            <SlotMachine
-              items={remainingGroups.map(g => ({ id: g.id, name: g.name, abbreviation: g.name, raffleId: raffle.id, imagePath: null, createdAt: '', updatedAt: '' }))}
-              spinning={spinning}
-              result={null}
-              onSpin={() => void handleSpinGroup()}
-            />
-            {spinning && (
-              <Button size="lg" color="orange" onClick={() => void handleSpinGroup()}>
-                ¡Parar!
-              </Button>
-            )}
-            {!spinning && (
-              <Button size="lg" color="orange" onClick={() => void handleSpinGroup()}>
-                Girar
-              </Button>
-            )}
-          </Stack>
-        ) : null}
+                <Text fw={700} ta="center" size="lg">
+                  Seleccioná Categoría — {selectedSport?.name}
+                </Text>
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                  {(sportsWithCategories.get(selectedSport?.id ?? '') ?? []).map((cat) => (
+                    <Card
+                      key={cat.id}
+                      withBorder
+                      radius="md"
+                      p="lg"
+                      ta="center"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => void handleSelectCategory(cat)}
+                    >
+                      <Text fw={700}>{cat.name}</Text>
+                    </Card>
+                  ))}
+                </SimpleGrid>
+              </Stack>
+            </Card>
+          ) : (
+            <Card withBorder radius="lg" p="xl">
+              <Stack gap="lg" align="center">
+                <Group justify="space-between" w="100%">
+                  <Button
+                    variant="subtle"
+                    size="xs"
+                    onClick={() => {
+                      setSelectedSport(null);
+                      setSelectedCategory(null);
+                      setPhase('select_sport');
+                    }}
+                  >
+                    ← Cambiar deporte
+                  </Button>
+                  <Badge color="orange" variant="light" size="lg">
+                    {selectedSport?.name} {selectedCategory ? `• ${selectedCategory.name}` : ''}
+                  </Badge>
+                </Group>
 
-        {/* Undo */}
-        {totalResults > 0 && !allDone && (
-          <Button variant="subtle" color="red" size="sm" leftSection={<IconArrowBackUp size={14} />}
-            onClick={openUndo}>
-            Deshacer último sorteo
+                <Box ta="center">
+                  <Title order={3}>
+                    {drawingStage === 'team' ? 'Sortear Equipo' : `Sortear Grupo para ${drawnTeam?.abbreviation}`}
+                  </Title>
+                  <Text size="sm" c="dimmed" mt={4}>
+                    {drawingStage === 'team'
+                      ? `${remainingTeams.length} equipos en la bolsa`
+                      : `${remainingGroups.length} grupos con vacantes disponibles`}
+                  </Text>
+                </Box>
+
+                {/* VISOR CILINDRO 3D */}
+                {drawingStage === 'team' ? (
+                  <Cylinder3D
+                    items={remainingTeams}
+                    spinning={spinning}
+                    targetIndex={targetIndex}
+                    onLockedIn={handleTeamLockedIn}
+                    renderItem={(team) => (
+                      <Group justify="center" gap="sm" wrap="nowrap">
+                        <Avatar
+                          src={getImageUrl(team.imagePath)}
+                          size={28}
+                          radius="xl"
+                          styles={{ image: { objectFit: 'contain', padding: '1px' } }}
+                        >
+                          <IconShield size={14} />
+                        </Avatar>
+                        <Text fw={800} size="md" style={{ whiteSpace: 'nowrap' }}>
+                          {team.abbreviation}
+                        </Text>
+                      </Group>
+                    )}
+                  />
+                ) : (
+                  <Cylinder3D
+                    items={remainingGroups}
+                    spinning={spinning}
+                    targetIndex={targetIndex}
+                    onLockedIn={() => void handleGroupLockedIn()}
+                    renderItem={(group) => (
+                      <Text fw={800} size="lg">{group.name}</Text>
+                    )}
+                  />
+                )}
+
+                {/* BOTÓN GIRAR CILINDRO */}
+                <Group justify="center" w="100%">
+                  {!spinning ? (
+                    <Button
+                      size="xl"
+                      color="orange"
+                      radius="md"
+                      fullWidth
+                      leftSection={<IconPlayerPlay size={20} />}
+                      onClick={() => {
+                        if (drawingStage === 'team') {
+                          handleStartSpin();
+                          void handleDrawTeam();
+                        } else {
+                          void handleDrawGroup();
+                        }
+                      }}
+                    >
+                      Girar Cilindro
+                    </Button>
+                  ) : (
+                    <Button size="xl" color="orange" radius="md" fullWidth loading>
+                      Sorteando {drawingStage === 'team' ? 'equipo' : 'grupo'}...
+                    </Button>
+                  )}
+                </Group>
+
+                {fullState?.results && fullState.results.length > 0 && (
+                  <Button
+                    variant="subtle"
+                    color="red"
+                    size="xs"
+                    leftSection={<IconArrowBackUp size={14} />}
+                    onClick={openUndo}
+                  >
+                    Deshacer último sorteo
+                  </Button>
+                )}
+              </Stack>
+            </Card>
+          )}
+        </Stack>
+      </Box>
+
+      {/* MODAL 1: Equipo Sorteado */}
+      <Modal
+        opened={teamModalOpened}
+        onClose={() => {}}
+        withCloseButton={false}
+        centered
+        radius="lg"
+      >
+        <Stack align="center" gap="md" py="md">
+          <IconSparkles size={48} color="var(--mantine-color-orange-5)" />
+          <Text size="sm" c="dimmed" tt="uppercase" fw={700} style={{ letterSpacing: '0.05em' }}>
+            ¡Equipo Sorteado!
+          </Text>
+          <Avatar
+            src={getImageUrl(drawnTeam?.imagePath)}
+            size={90}
+            radius="xl"
+            styles={{ image: { objectFit: 'contain', padding: '2px' } }}
+          >
+            <IconShield size={40} />
+          </Avatar>
+          <Box ta="center">
+            <Title order={2}>{drawnTeam?.name}</Title>
+            <Badge color="orange" size="lg" variant="light" mt={4}>
+              {drawnTeam?.abbreviation}
+            </Badge>
+          </Box>
+
+          <Button
+            size="lg"
+            color="orange"
+            fullWidth
+            mt="md"
+            onClick={handlePrepareGroupDraw}
+          >
+            Sortear Grupo
           </Button>
-        )}
-      </Stack>
+        </Stack>
+      </Modal>
 
+      {/* MODAL 2: Tabla del Grupo */}
+      <Modal
+        opened={resultModalOpened}
+        onClose={() => {}}
+        withCloseButton={false}
+        centered
+        size="lg"
+        radius="lg"
+      >
+        <Stack align="center" gap="md" py="sm">
+          <IconTrophy size={42} color="var(--mantine-color-green-5)" />
+
+          {/* Información de la Facultad Sorteada */}
+          <Paper withBorder p="md" radius="md" w="100%" ta="center">
+            <Group justify="center" gap="sm">
+              <Avatar
+                src={getImageUrl(drawnResult?.raffleTeam?.imagePath || drawnTeam?.imagePath)}
+                size={36}
+                radius="xl"
+                styles={{ image: { objectFit: 'contain', padding: '1px' } }}
+              />
+              <Box ta="left">
+                <Text fw={800} size="md">
+                  {drawnResult?.raffleTeam?.name || drawnTeam?.name}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {drawnResult?.raffleTeam?.abbreviation || drawnTeam?.abbreviation}
+                </Text>
+              </Box>
+            </Group>
+            <Divider my="sm" />
+            <Group justify="center" gap="xl">
+              <Box>
+                <Text size="xs" c="dimmed">Grupo</Text>
+                <Text fw={900} size="lg" c="orange.5">
+                  {selectedGroup?.name}
+                </Text>
+              </Box>
+              <Box>
+                <Text size="xs" c="dimmed">Posición</Text>
+                <Badge color="green" variant="light" size="lg">
+                  #{drawnResult?.position}
+                </Badge>
+              </Box>
+            </Group>
+          </Paper>
+
+          {/* Tabla del Grupo con Scroll Independiente */}
+          <Box w="100%">
+            <Group justify="space-between" mb={6}>
+              <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                Estado Actual — {selectedGroup?.name}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {groupResults.length}/{selectedGroup?.capacity ?? 0} ocupados
+              </Text>
+            </Group>
+            <Paper
+              withBorder
+              radius="md"
+              style={{ maxHeight: 180, overflowY: 'auto' }}
+            >
+              <Table striped withRowBorders={false} verticalSpacing={6}>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th w={40}>#</Table.Th>
+                    <Table.Th>Equipo</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {Array.from({ length: selectedGroup?.capacity ?? 0 }).map((_, idx) => {
+                    const pos = idx + 1;
+                    const res = groupResults.find((r) => r.position === pos);
+                    return (
+                      <Table.Tr key={pos}>
+                        <Table.Td>
+                          <Text size="xs" c="dimmed" fw={700}>{pos}</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          {res ? (
+                            <Group gap="xs" wrap="nowrap">
+                              <Avatar
+                                src={getImageUrl(res.raffleTeam?.imagePath)}
+                                size={20}
+                                radius="xl"
+                                styles={{ image: { objectFit: 'contain' } }}
+                              />
+                              <Text size="sm" fw={600} style={{ whiteSpace: 'nowrap' }}>
+                                {res.raffleTeam?.name} ({res.raffleTeam?.abbreviation})
+                              </Text>
+                            </Group>
+                          ) : (
+                            <Text size="sm" c="dimmed" fs="italic">— Vacío —</Text>
+                          )}
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            </Paper>
+          </Box>
+
+          <Button
+            size="lg"
+            color="orange"
+            fullWidth
+            mt="xs"
+            onClick={handleNextTeamDraw}
+          >
+            Sortear siguiente equipo
+          </Button>
+        </Stack>
+      </Modal>
+
+      {/* Modal Deshacer */}
       <Modal opened={undoOpened} onClose={closeUndo} title="Deshacer último sorteo" centered>
         <Stack>
-          <Text>¿Estás seguro que querés deshacer el último sorteo realizado?</Text>
+          <Text size="sm">¿Estás seguro que querés deshacer el último sorteo realizado?</Text>
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeUndo}>Cancelar</Button>
             <Button color="red" loading={undoing} onClick={() => void handleUndo()}>
