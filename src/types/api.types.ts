@@ -150,7 +150,7 @@ export interface SportCategoryTeam {
   sportId: string;
   sportCategoryId: string | null;
   raffleTeamId: string;
-  raffleTeam: RaffleTeam;
+  raffleTeam?: RaffleTeam;
 }
 
 export interface CreateGroupItem {

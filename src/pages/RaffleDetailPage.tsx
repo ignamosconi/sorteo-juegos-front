@@ -3,13 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Title, Text, Button, Group, Stack, Card, Badge, Box, 
   Stepper, Modal, TextInput, ActionIcon, Loader, Center,
-  SimpleGrid, NumberInput, Tabs, Divider, MultiSelect, SegmentedControl, Paper, Avatar, Alert, Tooltip,
+  SimpleGrid, NumberInput, Tabs, Divider, MultiSelect, SegmentedControl, Paper, Avatar, Alert, Tooltip, Checkbox,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
   IconPlus, IconTrash, IconEdit,
   IconExternalLink, IconArrowLeft, IconCheck, IconUsers,
-  IconRun, IconCategory, IconDownload, IconShield, IconX, IconAlertTriangle, IconInfoCircle,
+  IconRun, IconCategory, IconShield, IconX, IconAlertTriangle, IconInfoCircle, IconUserCheck, IconSearch,
 } from '@tabler/icons-react';
 import { raffleApi } from '@/api/raffleApi';
 import { raffleTeamApi } from '@/api/raffleTeamApi';
@@ -19,7 +19,7 @@ import { defaultCategoryApi } from '@/api/defaultCategoryApi';
 import { notifications } from '@mantine/notifications';
 import type {
   Raffle, RaffleTeam, Sport, SportCategory,
-  SportCategoryGroup, GlobalTeam, DefaultCategory,
+  SportCategoryGroup, GlobalTeam, DefaultCategory, SportCategoryTeam,
 } from '@/types/api.types';
 import { ImageUploadInput } from '@/components/ui/ImageUploadInput';
 import { getImageUrl } from '@/utils/imageUrl';
@@ -45,20 +45,29 @@ const show429Notification = () => {
   });
 };
 
-// ── Paso 1: Equipos ──────────────────────────────────────────────────────────
+// ── Paso 1: Pool General de Equipos ──────────────────────────────────────────
 function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void }) {
   const [teams, setTeams] = useState<RaffleTeam[]>([]);
   const [globalTeams, setGlobalTeams] = useState<GlobalTeam[]>([]);
   const [loading, setLoading] = useState(true);
-  const [importOpened, { open: openImport, close: closeImport }] = useDisclosure(false);
-  const [addOpened, { open: openAdd, close: closeAdd }] = useDisclosure(false);
+  
+  // Modal unificada
+  const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
+  const [sourceType, setSourceType] = useState<'system' | 'custom'>('system');
   const [editTarget, setEditTarget] = useState<RaffleTeam | null>(null);
+
+  // Importar del sistema
+  const [selectedGlobal, setSelectedGlobal] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Equipo personalizado
+  const [form, setForm] = useState({ name: '', abbreviation: '', imagePath: '' });
+  const [errors, setErrors] = useState<{ name?: string; abbreviation?: string }>({});
+
+  // Borrado
   const [deleteTarget, setDeleteTarget] = useState<RaffleTeam | null>(null);
   const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
   const [deleteAllOpened, { open: openDeleteAll, close: closeDeleteAll }] = useDisclosure(false);
-  const [selectedGlobal, setSelectedGlobal] = useState<string[]>([]);
-  const [form, setForm] = useState({ name: '', abbreviation: '', imagePath: '' });
-  const [errors, setErrors] = useState<{ name?: string; abbreviation?: string }>({});
   const [saving, setSaving] = useState(false);
 
   const addBtnRef = useRef<HTMLButtonElement>(null);
@@ -85,21 +94,35 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
     gt => !teams.some(t => t.name.toLowerCase() === gt.name.toLowerCase() || t.abbreviation.toLowerCase() === gt.abbreviation.toLowerCase())
   );
 
+  const filteredGlobalTeams = availableGlobalTeams.filter(
+    gt => gt.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          gt.abbreviation.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleToggleSelectAll = () => {
+    if (selectedGlobal.length === availableGlobalTeams.length) {
+      setSelectedGlobal([]);
+    } else {
+      setSelectedGlobal(availableGlobalTeams.map(t => t.id));
+    }
+  };
+
   const handleImport = async () => {
-    if (!selectedGlobal.length) { closeImport(); return; }
+    if (!selectedGlobal.length) return;
     setSaving(true);
     try {
       await raffleTeamApi.importFromGlobal(raffleId, selectedGlobal);
       await load();
-      closeImport();
+      closeModal();
       setSelectedGlobal([]);
+      setSearchQuery('');
     } catch (err: any) {
       if (err?.response?.status === 429) show429Notification();
       else notifications.show({ message: 'Error al importar equipos', color: 'red' });
     } finally { setSaving(false); }
   };
 
-  const handleSave = async () => {
+  const handleSaveCustom = async () => {
     const newErrors: { name?: string; abbreviation?: string } = {};
     const trimName = form.name.trim().toLowerCase();
     const trimAbbr = form.abbreviation.trim().toLowerCase();
@@ -135,7 +158,7 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
         await raffleTeamApi.create(raffleId, form);
       }
       await load();
-      closeAdd();
+      closeModal();
       setForm({ name: '', abbreviation: '', imagePath: '' });
       setEditTarget(null);
       setTimeout(() => addBtnRef.current?.focus(), 100);
@@ -177,17 +200,28 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
   return (
     <Stack gap="md">
       <Group justify="space-between">
-        <Text fw={500}>Equipos del sorteo ({teams.length})</Text>
+        <Text fw={500}>Pool de Equipos del sorteo ({teams.length})</Text>
         <Group gap="xs">
           {teams.length > 0 && (
             <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={openDeleteAll}>
               Borrar todos
             </Button>
           )}
-          <Button size="xs" variant="light" color="orange" leftSection={<IconDownload size={14} />} onClick={openImport}>
-            Importar del sistema ({availableGlobalTeams.length})
-          </Button>
-          <Button ref={addBtnRef} size="xs" leftSection={<IconPlus size={14} />} color="orange" onClick={() => { setEditTarget(null); setForm({ name: '', abbreviation: '', imagePath: '' }); setErrors({}); openAdd(); }}>
+          <Button
+            ref={addBtnRef}
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            color="orange"
+            onClick={() => {
+              setEditTarget(null);
+              setSourceType('system');
+              setForm({ name: '', abbreviation: '', imagePath: '' });
+              setErrors({});
+              setSelectedGlobal([]);
+              setSearchQuery('');
+              openModal();
+            }}
+          >
             Agregar equipo
           </Button>
         </Group>
@@ -195,7 +229,7 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
 
       {teams.length === 0 ? (
         <Card withBorder radius="md" p="xl" ta="center">
-          <Text c="dimmed" size="sm" mb="md">No hay equipos cargados todavía.</Text>
+          <Text c="dimmed" size="sm" mb="md">No hay equipos cargados en el sorteo todavía.</Text>
         </Card>
       ) : (
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -212,7 +246,13 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
                   </Box>
                 </Group>
                 <Group gap={4}>
-                  <ActionIcon size="sm" variant="subtle" color="orange" onClick={() => { setEditTarget(team); setForm({ name: team.name, abbreviation: team.abbreviation, imagePath: team.imagePath || '' }); setErrors({}); openAdd(); }}>
+                  <ActionIcon size="sm" variant="subtle" color="orange" onClick={() => {
+                    setEditTarget(team);
+                    setSourceType('custom');
+                    setForm({ name: team.name, abbreviation: team.abbreviation, imagePath: team.imagePath || '' });
+                    setErrors({});
+                    openModal();
+                  }}>
                     <IconEdit size={14} />
                   </ActionIcon>
                   <ActionIcon size="sm" variant="subtle" color="red" onClick={() => { setDeleteTarget(team); openDelete(); }}>
@@ -231,74 +271,121 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
         </Button>
       </Group>
 
-      {/* Import Modal */}
-      <Modal opened={importOpened} onClose={closeImport} title="Importar equipos del sistema" centered>
+      <Modal
+        opened={modalOpened}
+        onClose={() => { closeModal(); setTimeout(() => addBtnRef.current?.focus(), 100); }}
+        title={editTarget ? 'Editar equipo' : 'Agregar equipos al pool'}
+        centered
+      >
         <Stack gap="md">
-          <Text size="sm" c="dimmed">
-            Hacé click en el campo para desplegar y seleccionar uno o varios equipos.
-          </Text>
-            <MultiSelect
-              data-autofocus
-              label="Equipos disponibles"
-              placeholder={selectedGlobal.length > 0 ? '' : 'Seleccioná equipos...'}
-              data={availableGlobalTeams.map(t => ({ value: t.id, label: `${t.name} (${t.abbreviation})` }))}
-              value={selectedGlobal}
-              onChange={setSelectedGlobal}
-              searchable={false}
-              hidePickedOptions
-              maxDropdownHeight="50vh"
-              comboboxProps={{ shadow: 'md', withinPortal: true }}
+          {!editTarget && (
+            <SegmentedControl
+              value={sourceType}
+              onChange={v => setSourceType(v as 'system' | 'custom')}
+              data={[
+                { label: 'Equipos del sistema', value: 'system' },
+                { label: 'Equipo personalizado', value: 'custom' },
+              ]}
             />
-          <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeImport}>Cancelar</Button>
-            <Button color="orange" loading={saving} disabled={selectedGlobal.length === 0} onClick={() => void handleImport()}>
-              Importar seleccionados ({selectedGlobal.length})
-            </Button>
-          </Group>
+          )}
+
+          {sourceType === 'system' && !editTarget ? (
+            <Stack gap="xs">
+              <TextInput
+                placeholder="Buscar equipo..."
+                leftSection={<IconSearch size={16} />}
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+              <Group justify="space-between" align="center">
+                <Text size="xs" c="dimmed">
+                  {selectedGlobal.length} de {availableGlobalTeams.length} seleccionados
+                </Text>
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  onClick={handleToggleSelectAll}
+                  disabled={availableGlobalTeams.length === 0}
+                >
+                  {selectedGlobal.length === availableGlobalTeams.length ? 'Desmarcar todos' : 'Seleccionar todos'}
+                </Button>
+              </Group>
+
+              <Paper withBorder p="xs" radius="md" style={{ maxHeight: 240, overflowY: 'auto' }}>
+                {filteredGlobalTeams.length === 0 ? (
+                  <Text size="xs" c="dimmed" ta="center" py="md">
+                    {availableGlobalTeams.length === 0
+                      ? 'Todos los equipos del sistema ya están en este sorteo.'
+                      : 'No se encontraron equipos que coincidan.'}
+                  </Text>
+                ) : (
+                  <Stack gap="xs">
+                    {filteredGlobalTeams.map(t => (
+                      <Checkbox
+                        key={t.id}
+                        label={`${t.name} (${t.abbreviation})`}
+                        checked={selectedGlobal.includes(t.id)}
+                        onChange={e => {
+                          if (e.currentTarget.checked) {
+                            setSelectedGlobal(prev => [...prev, t.id]);
+                          } else {
+                            setSelectedGlobal(prev => prev.filter(id => id !== t.id));
+                          }
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                )}
+              </Paper>
+
+              <Group justify="flex-end" mt="xs">
+                <Button variant="subtle" onClick={closeModal}>Cancelar</Button>
+                <Button color="orange" loading={saving} disabled={selectedGlobal.length === 0} onClick={() => void handleImport()}>
+                  Importar seleccionados ({selectedGlobal.length})
+                </Button>
+              </Group>
+            </Stack>
+          ) : (
+            <Stack gap="xs">
+              <TextInput
+                data-autofocus
+                label="Nombre completo"
+                placeholder="Ej: Facultad Regional Villa María"
+                value={form.name}
+                error={errors.name}
+                onChange={e => {
+                  const val = e.target.value;
+                  setForm(f => ({ ...f, name: val }));
+                  if (val.trim()) setErrors(prev => ({ ...prev, name: undefined }));
+                }}
+                onKeyDown={e => e.key === 'Enter' && void handleSaveCustom()}
+              />
+              <TextInput
+                label="Abreviación"
+                placeholder="Ej: FRVM"
+                value={form.abbreviation}
+                error={errors.abbreviation}
+                onChange={e => {
+                  const val = e.target.value;
+                  setForm(f => ({ ...f, abbreviation: val }));
+                  if (val.trim()) setErrors(prev => ({ ...prev, abbreviation: undefined }));
+                }}
+                onKeyDown={e => e.key === 'Enter' && void handleSaveCustom()}
+              />
+              <ImageUploadInput
+                label="Logo / Escudo del equipo (opcional)"
+                value={form.imagePath}
+                onChange={path => setForm(f => ({ ...f, imagePath: path || '' }))}
+              />
+              <Group justify="flex-end" mt="xs">
+                <Button variant="subtle" onClick={closeModal}>Cancelar</Button>
+                <Button color="orange" loading={saving} onClick={() => void handleSaveCustom()}>Guardar</Button>
+              </Group>
+            </Stack>
+          )}
         </Stack>
       </Modal>
 
-      {/* Add/Edit Modal */}
-      <Modal opened={addOpened} onClose={() => { closeAdd(); setTimeout(() => addBtnRef.current?.focus(), 100); }} title={editTarget ? 'Editar equipo' : 'Agregar equipo'} centered>
-        <Stack>
-          <TextInput
-            data-autofocus
-            label="Nombre completo"
-            placeholder="Ej: Facultad Regional Villa María"
-            value={form.name}
-            error={errors.name}
-            onChange={e => {
-              const val = e.target.value;
-              setForm(f => ({ ...f, name: val }));
-              if (val.trim()) setErrors(prev => ({ ...prev, name: undefined }));
-            }}
-            onKeyDown={e => e.key === 'Enter' && void handleSave()}
-          />
-          <TextInput
-            label="Abreviación"
-            placeholder="Ej: FRVM"
-            value={form.abbreviation}
-            error={errors.abbreviation}
-            onChange={e => {
-              const val = e.target.value;
-              setForm(f => ({ ...f, abbreviation: val }));
-              if (val.trim()) setErrors(prev => ({ ...prev, abbreviation: undefined }));
-            }}
-            onKeyDown={e => e.key === 'Enter' && void handleSave()}
-          />
-          <ImageUploadInput
-            label="Logo / Escudo del equipo (opcional)"
-            value={form.imagePath}
-            onChange={path => setForm(f => ({ ...f, imagePath: path || '' }))}
-          />
-          <Group justify="flex-end">
-            <Button variant="subtle" onClick={() => { closeAdd(); setTimeout(() => addBtnRef.current?.focus(), 100); }}>Cancelar</Button>
-            <Button color="orange" loading={saving} onClick={() => void handleSave()}>Guardar</Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      {/* Delete Modal */}
       <Modal opened={deleteOpened} onClose={closeDelete} title="Eliminar equipo" centered>
         <Stack>
           <Text>¿Eliminar el equipo <strong>{deleteTarget?.name}</strong>?</Text>
@@ -309,10 +396,9 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
         </Stack>
       </Modal>
 
-      {/* Delete All Modal */}
       <Modal opened={deleteAllOpened} onClose={closeDeleteAll} title="Eliminar todos los equipos" centered>
         <Stack>
-          <Text>¿Estás seguro de que querés eliminar <strong>todos los equipos</strong> de este sorteo? Esta acción no se puede deshacer.</Text>
+          <Text>¿Estás seguro de que querés eliminar <strong>todos los equipos</strong> de este sorteo?</Text>
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeDeleteAll}>Cancelar</Button>
             <Button color="red" loading={saving} onClick={() => void handleDeleteAll()}>Eliminar todos</Button>
@@ -452,7 +538,7 @@ function SportsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
       <Group justify="space-between" mt="md">
         <Button variant="subtle" onClick={onBack}>← Volver</Button>
         <Button color="orange" onClick={onDone} disabled={sports.length === 0}>
-          Siguiente: Grupos →
+          Siguiente: Categorías, Equipos y Grupos →
         </Button>
       </Group>
 
@@ -502,7 +588,7 @@ function SportsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
 
       <Modal opened={deleteAllOpened} onClose={closeDeleteAll} title="Eliminar todos los deportes" centered>
         <Stack>
-          <Text>¿Estás seguro de que querés eliminar <strong>todos los deportes</strong> de este sorteo? Se eliminarán todas sus categorías y grupos asociados.</Text>
+          <Text>¿Estás seguro de que querés eliminar <strong>todos los deportes</strong> de este sorteo?</Text>
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeDeleteAll}>Cancelar</Button>
             <Button color="red" loading={saving} onClick={() => void handleDeleteAll()}>Eliminar todos</Button>
@@ -513,29 +599,34 @@ function SportsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   );
 }
 
-// ── Paso 3: Grupos y Categorías ───────────────────────────────────────────────
+// ── Paso 3: Categorías, Inscripción de Equipos y Grupos ────────────────────────
 function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: () => void; onBack: () => void }) {
   const [sports, setSports] = useState<SportWithData[]>([]);
+  const [raffleTeams, setRaffleTeams] = useState<RaffleTeam[]>([]);
   const [defaultCategories, setDefaultCategories] = useState<DefaultCategory[]>([]);
-  const [totalTeamsCount, setTotalTeamsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [activeSport, setActiveSport] = useState<string | null>(null);
 
   const [sportCategoryMap, setSportCategoryMap] = useState<Record<string, string>>({});
-
+  const [assignedTeams, setAssignedTeams] = useState<SportCategoryTeam[]>([]);
   const [groups, setGroups] = useState<SportCategoryGroup[]>([]);
   
-  // Modales
+  // Modales Categorías
   const [catModalOpened, { open: openCatModal, close: closeCatModal }] = useDisclosure(false);
   const [renameCatTarget, setRenameCatTarget] = useState<SportCategory | null>(null);
   const [renameCatName, setRenameCatName] = useState('');
   const [renameCatError, setRenameCatError] = useState<string | undefined>(undefined);
   const [renameCatOpened, { open: openRenameCat, close: closeRenameCat }] = useDisclosure(false);
-
   const [deleteCatTarget, setDeleteCatTarget] = useState<SportCategory | null>(null);
   const [deleteCatOpened, { open: openDeleteCat, close: closeDeleteCat }] = useDisclosure(false);
   const [deleteAllCatsOpened, { open: openDeleteAllCats, close: closeDeleteAllCats }] = useDisclosure(false);
 
+  // Modal Inscripción Equipos
+  const [assignModalOpened, { open: openAssignModal, close: closeAssignModal }] = useDisclosure(false);
+  const [selectedTeamsToAssign, setSelectedTeamsToAssign] = useState<string[]>([]);
+  const [searchAssignQuery, setSearchAssignQuery] = useState('');
+
+  // Modales Grupos
   const [groupModalOpened, { open: openGroupModal, close: closeGroupModal }] = useDisclosure(false);
   const [deleteAllGroupsOpened, { open: openDeleteAllGroups, close: closeDeleteAllGroups }] = useDisclosure(false);
 
@@ -547,6 +638,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   // Category modal states
   const [catSourceType, setCatSourceType] = useState<'predefined' | 'custom'>('predefined');
   const [selectedPredefinedCats, setSelectedPredefinedCats] = useState<string[]>([]);
+  const [searchCatQuery, setSearchCatQuery] = useState('');
   const [customCatName, setCustomCatName] = useState('');
   const [catError, setCatError] = useState<string | undefined>(undefined);
 
@@ -555,7 +647,6 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   const [capacityMode, setCapacityMode] = useState<'same' | 'custom'>('same');
   const [groupCapacity, setGroupCapacity] = useState<number>(4);
   const [groupCapacities, setGroupCapacities] = useState<number[]>([4, 4, 4, 4]);
-
   const [nameMode, setNameMode] = useState<'default' | 'custom'>('default');
   const [groupNames, setGroupNames] = useState<string[]>(['', '', '', '']);
   const [saving, setSaving] = useState(false);
@@ -565,13 +656,13 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   const loadInitialData = useCallback(async () => {
     setLoading(true);
     try {
-      const [sportsRaw, defCats, raffleTeams] = await Promise.all([
+      const [sportsRaw, defCats, rTeams] = await Promise.all([
         sportApi.getByRaffle(raffleId),
         defaultCategoryApi.getAll(),
         raffleTeamApi.getByRaffle(raffleId),
       ]);
       setDefaultCategories(defCats);
-      setTotalTeamsCount(raffleTeams.length);
+      setRaffleTeams(rTeams);
 
       const sportsWithData = await Promise.all(
         sportsRaw.map(async s => {
@@ -609,16 +700,25 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
 
   const activeCategoryVal = getActiveCategoryForSport(activeSport, sports);
 
-  useEffect(() => {
+  // Cargar Equipos Asignados y Grupos según deporte + categoría activa
+  const refreshSportData = useCallback(async () => {
     if (!activeSport) return;
     const catId = currentSport?.hasCategories ? activeCategoryVal : null;
-    
-    sportApi.getGroups(activeSport, catId)
-      .then(setGroups)
-      .catch((err) => {
-        if (err?.response?.status === 429) show429Notification();
-      });
-  }, [activeSport, activeCategoryVal, currentSport, sports]);
+    try {
+      const [assigned, grps] = await Promise.all([
+        sportApi.getAssignedTeams(activeSport, catId),
+        sportApi.getGroups(activeSport, catId),
+      ]);
+      setAssignedTeams(assigned);
+      setGroups(grps);
+    } catch (err: any) {
+      if (err?.response?.status === 429) show429Notification();
+    }
+  }, [activeSport, activeCategoryVal, currentSport]);
+
+  useEffect(() => {
+    void refreshSportData();
+  }, [refreshSportData]);
 
   const handleSportTabChange = (sportId: string | null) => {
     if (!sportId) return;
@@ -640,9 +740,68 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
     }
   };
 
+  // Asignación de Equipos al Deporte/Categoría
+  const unassignedRaffleTeams = raffleTeams.filter(
+    rt => !assignedTeams.some(at => at.raffleTeamId === rt.id)
+  );
+
+  const filteredUnassignedTeams = unassignedRaffleTeams.filter(
+    t => t.name.toLowerCase().includes(searchAssignQuery.toLowerCase()) ||
+         t.abbreviation.toLowerCase().includes(searchAssignQuery.toLowerCase())
+  );
+
+  const handleToggleSelectAllAssign = () => {
+    if (selectedTeamsToAssign.length === unassignedRaffleTeams.length) {
+      setSelectedTeamsToAssign([]);
+    } else {
+      setSelectedTeamsToAssign(unassignedRaffleTeams.map(t => t.id));
+    }
+  };
+
+  const handleAssignTeams = async () => {
+    if (!activeSport || selectedTeamsToAssign.length === 0) return;
+    setSaving(true);
+    const catId = currentSport?.hasCategories ? activeCategoryVal : null;
+    try {
+      await Promise.all(
+        selectedTeamsToAssign.map(teamId => sportApi.assignTeam(activeSport, teamId, catId))
+      );
+      await refreshSportData();
+      closeAssignModal();
+      setSelectedTeamsToAssign([]);
+      setSearchAssignQuery('');
+    } catch (err: any) {
+      if (err?.response?.status === 429) show429Notification();
+      else notifications.show({ message: 'Error al inscribir equipos', color: 'red' });
+    } finally { setSaving(false); }
+  };
+
+  const handleRemoveTeamAssignment = async (assignmentId: string) => {
+    try {
+      await sportApi.removeTeamAssignment(assignmentId);
+      await refreshSportData();
+    } catch (err: any) {
+      if (err?.response?.status === 429) show429Notification();
+      else notifications.show({ message: 'Error al desinscribir equipo', color: 'red' });
+    }
+  };
+
+  // Categorías
   const availableDefCats = defaultCategories.filter(
     dc => !currentSport?.categories.some(c => c.name.toLowerCase() === dc.name.toLowerCase())
   );
+
+  const filteredDefCats = availableDefCats.filter(
+    dc => dc.name.toLowerCase().includes(searchCatQuery.toLowerCase())
+  );
+
+  const handleToggleSelectAllCats = () => {
+    if (selectedPredefinedCats.length === availableDefCats.length) {
+      setSelectedPredefinedCats([]);
+    } else {
+      setSelectedPredefinedCats(availableDefCats.map(c => c.name));
+    }
+  };
 
   const handleAddCategory = async () => {
     if (!activeSport || !currentSport) return;
@@ -674,6 +833,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
         }
         closeCatModal();
         setSelectedPredefinedCats([]);
+        setSearchCatQuery('');
         setTimeout(() => addCatBtnRef.current?.focus(), 100);
       } catch (err: any) {
         if (err?.response?.status === 429) show429Notification();
@@ -741,7 +901,6 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
     setSaving(true);
     try {
       await sportApi.deleteCategory(deleteCatTarget.id);
-      
       setSportCategoryMap(prev => {
         const next = { ...prev };
         if (next[activeSport] === deleteCatTarget.id) delete next[activeSport];
@@ -762,7 +921,6 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
     setSaving(true);
     try {
       await Promise.all(currentSport.categories.map(c => sportApi.deleteCategory(c.id)));
-      
       setSportCategoryMap(prev => {
         const next = { ...prev };
         delete next[activeSport];
@@ -778,6 +936,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
     } finally { setSaving(false); }
   };
 
+  // Grupos
   const handleGroupCountChange = (v: number | string) => {
     const newCount = Number(v) || 1;
     setGroupCount(newCount);
@@ -821,9 +980,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
       });
 
       await sportApi.createGroups(activeSport, groupPayload, catId);
-
-      const updated = await sportApi.getGroups(activeSport, catId);
-      setGroups(updated);
+      await refreshSportData();
       closeGroupModal();
     } catch (err: any) {
       if (err?.response?.status === 429) show429Notification();
@@ -835,8 +992,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
     setSaving(true);
     try {
       await Promise.all(groups.map(g => sportApi.deleteGroup(g.id)));
-      const catId = currentSport?.hasCategories ? activeCategoryVal : null;
-      if (activeSport) setGroups(await sportApi.getGroups(activeSport, catId));
+      await refreshSportData();
       closeDeleteAllGroups();
       notifications.show({ message: 'Todos los grupos fueron eliminados', color: 'blue' });
     } catch (err: any) {
@@ -847,12 +1003,13 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
 
   if (loading) return <Center py="xl"><Loader color="orange" /></Center>;
 
-  const maxGroupsAllowed = totalTeamsCount > 0 ? totalTeamsCount : 20;
+  const assignedCount = assignedTeams.length;
+  const maxGroupsAllowed = assignedCount > 0 ? assignedCount : 20;
   const calculatedTotalCapacity = capacityMode === 'same'
     ? groupCount * groupCapacity
     : groupCapacities.reduce((a, b) => a + b, 0);
 
-  const capacityExceeds = totalTeamsCount > 0 && calculatedTotalCapacity > totalTeamsCount;
+  const capacityExceeds = assignedCount > 0 && calculatedTotalCapacity > assignedCount;
 
   return (
     <Stack gap="md">
@@ -882,148 +1039,211 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
         </Tabs>
       </Box>
 
-      {/* ── 2. Cabecera limpia de Categorías ── */}
+      {/* ── Panel Único Contenedor de Categorías, Inscriptos y Grupos ── */}
       <Paper withBorder radius="md" p="md">
-        <Stack gap="sm">
-          <Group justify="space-between" align="center">
-            <Group gap="xs">
-              <Text fw={600} size="sm">Categorías de {currentSport?.name}:</Text>
-              {currentSport?.categories.length === 0 && (
-                <Text size="sm" c="dimmed">(General - Sin categorías)</Text>
-              )}
-            </Group>
-            <Group gap="xs">
-              {currentSport && currentSport.categories.length > 0 && (
-                <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={openDeleteAllCats}>
-                  Borrar categorías
-                </Button>
-              )}
-              <Button ref={addCatBtnRef} size="xs" color="orange" variant="light" leftSection={<IconPlus size={14} />} onClick={() => { setCatError(undefined); setSelectedPredefinedCats([]); setCustomCatName(''); openCatModal(); }}>
-                Agregar categoría
-              </Button>
-            </Group>
-          </Group>
+        <Stack gap="lg">
 
-          {currentSport && currentSport.categories.length > 0 && (
-            <Tabs
-              value={activeCategoryVal}
-              onChange={handleCatTabChange}
-              variant="outline"
-              radius="sm"
-            >
-              <Tabs.List
-                ref={catsTabsListRef}
-                style={{
-                  flexWrap: 'nowrap',
-                  overflowX: 'auto',
-                  scrollbarWidth: 'none',
-                  msOverflowStyle: 'none',
-                }}
+          {/* ── A. Categorías ── */}
+          <Stack gap="sm">
+            <Group justify="space-between" align="center">
+              <Group gap="xs">
+                <Text fw={600} size="sm">Categorías de {currentSport?.name}:</Text>
+                {currentSport?.categories.length === 0 && (
+                  <Text size="sm" c="dimmed">(General - Sin categorías)</Text>
+                )}
+              </Group>
+              <Group gap="xs">
+                {currentSport && currentSport.categories.length > 0 && (
+                  <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={openDeleteAllCats}>
+                    Borrar categorías
+                  </Button>
+                )}
+                <Button
+                  ref={addCatBtnRef}
+                  size="xs"
+                  color="orange"
+                  variant="light"
+                  leftSection={<IconPlus size={14} />}
+                  onClick={() => {
+                    setCatError(undefined);
+                    setSelectedPredefinedCats([]);
+                    setSearchCatQuery('');
+                    setCustomCatName('');
+                    setCatSourceType('predefined');
+                    openCatModal();
+                  }}
+                >
+                  Agregar categoría
+                </Button>
+              </Group>
+            </Group>
+
+            {currentSport && currentSport.categories.length > 0 && (
+              <Tabs
+                value={activeCategoryVal}
+                onChange={handleCatTabChange}
+                variant="outline"
+                radius="sm"
               >
-                {currentSport.categories.map(c => (
-                  <Tabs.Tab
-                    key={c.id}
-                    value={c.id}
-                    data-value={c.id}
-                    style={{ whiteSpace: 'nowrap' }}
-                    onDoubleClick={() => {
-                      setRenameCatTarget(c);
-                      setRenameCatName(c.name);
-                      setRenameCatError(undefined);
-                      openRenameCat();
-                    }}
-                  >
-                    <Tooltip label="Doble click para renombrar" openDelay={500}>
-                      <Group gap={6} wrap="nowrap">
-                        <Text size="sm">{c.name}</Text>
-                        <Box
-                          component="span"
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            cursor: 'pointer',
-                            opacity: 0.7,
-                            padding: '2px',
-                            borderRadius: '4px',
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteCatTarget(c);
-                            openDeleteCat();
-                          }}
-                        >
-                          <IconX size={12} />
-                        </Box>
-                      </Group>
-                    </Tooltip>
-                  </Tabs.Tab>
-                ))}
-              </Tabs.List>
-            </Tabs>
-          )}
-        </Stack>
-      </Paper>
+                <Tabs.List
+                  ref={catsTabsListRef}
+                  style={{
+                    flexWrap: 'nowrap',
+                    overflowX: 'auto',
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none',
+                  }}
+                >
+                  {currentSport.categories.map(c => (
+                    <Tabs.Tab
+                      key={c.id}
+                      value={c.id}
+                      data-value={c.id}
+                      style={{ whiteSpace: 'nowrap' }}
+                      onDoubleClick={() => {
+                        setRenameCatTarget(c);
+                        setRenameCatName(c.name);
+                        setRenameCatError(undefined);
+                        openRenameCat();
+                      }}
+                    >
+                      <Tooltip label="Doble click para renombrar" openDelay={500}>
+                        <Group gap={6} wrap="nowrap">
+                          <Text size="sm">{c.name}</Text>
+                          <Box
+                            component="span"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              cursor: 'pointer',
+                              opacity: 0.7,
+                              padding: '2px',
+                              borderRadius: '4px',
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteCatTarget(c);
+                              openDeleteCat();
+                            }}
+                          >
+                            <IconX size={12} />
+                          </Box>
+                        </Group>
+                      </Tooltip>
+                    </Tabs.Tab>
+                  ))}
+                </Tabs.List>
+              </Tabs>
+            )}
+          </Stack>
 
-      {/* ── 3. Sección de Grupos limpia ── */}
-      <Paper withBorder radius="md" p="md">
-        <Stack gap="md">
-          <Group justify="space-between" align="center">
-            <Box>
-              <Text fw={600} size="md">Grupos configurados ({groups.length})</Text>
-              <Text size="xs" c="dimmed">
-                {currentSport?.name} {currentSport?.hasCategories ? `• ${currentSport.categories.find(c => c.id === activeCategoryVal)?.name ?? ''}` : ''}
-              </Text>
-            </Box>
-            <Group gap="xs">
-              {groups.length > 0 && (
-                <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={openDeleteAllGroups}>
-                  Borrar todos
-                </Button>
-              )}
-              <Button size="xs" leftSection={<IconPlus size={14} />} color="orange" onClick={() => {
-                const initCount = Math.min(4, maxGroupsAllowed);
-                setGroupCount(initCount);
-                setGroupCapacity(4);
-                setGroupCapacities(Array(initCount).fill(4));
-                setCapacityMode('same');
-                setNameMode('default');
-                setGroupNames(Array(initCount).fill(''));
-                openGroupModal();
-              }}>
-                Crear grupos
+          {/* ── B. Equipos Inscriptos en esta Disciplina ── */}
+          <Stack gap="md">
+            <Group justify="space-between" align="center">
+              <Box>
+                <Text fw={600} size="md">
+                  Equipos inscriptos ({assignedTeams.length})
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {currentSport?.name} {currentSport?.hasCategories ? `• ${currentSport.categories.find(c => c.id === activeCategoryVal)?.name ?? ''}` : ''}
+                </Text>
+              </Box>
+              <Button size="xs" color="orange" leftSection={<IconUserCheck size={14} />} onClick={() => { setSelectedTeamsToAssign([]); setSearchAssignQuery(''); openAssignModal(); }}>
+                Inscribir equipos ({unassignedRaffleTeams.length} disponibles)
               </Button>
             </Group>
-          </Group>
+
+            {assignedTeams.length === 0 ? (
+              <Text c="dimmed" size="sm" ta="center" py="md">
+                No hay equipos inscriptos en esta disciplina aún.
+              </Text>
+            ) : (
+              <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
+                {assignedTeams.map(at => {
+                  const teamInfo = raffleTeams.find(rt => rt.id === at.raffleTeamId) || at.raffleTeam;
+                  return (
+                    <Card key={at.id} withBorder radius="md" p="xs">
+                      <Group justify="space-between">
+                        <Group gap="xs">
+                          <Avatar src={getImageUrl(teamInfo?.imagePath)} radius="xl" size="xs">
+                            <IconShield size={12} />
+                          </Avatar>
+                          <Box>
+                            <Text fw={500} size="xs">{teamInfo?.name || 'Equipo'}</Text>
+                            <Text size="10px" c="dimmed">{teamInfo?.abbreviation}</Text>
+                          </Box>
+                        </Group>
+                        <ActionIcon size="xs" variant="subtle" color="red" onClick={() => void handleRemoveTeamAssignment(at.id)}>
+                          <IconX size={12} />
+                        </ActionIcon>
+                      </Group>
+                    </Card>
+                  );
+                })}
+              </SimpleGrid>
+            )}
+          </Stack>
 
           <Divider />
 
-          {groups.length === 0 ? (
-            <Text c="dimmed" size="sm" ta="center" py="lg">No hay grupos configurados todavía.</Text>
-          ) : (
-            <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-              {groups.map(g => (
-                <Card key={g.id} withBorder radius="md" p="sm">
-                  <Group justify="space-between">
-                    <Box>
-                      <Text fw={500} size="sm">{g.name}</Text>
-                      <Text size="xs" c="dimmed">{g.capacity} equipos por grupo</Text>
-                    </Box>
-                    <ActionIcon size="sm" variant="subtle" color="red" onClick={async () => {
-                      try {
-                        await sportApi.deleteGroup(g.id);
-                        const catId = currentSport?.hasCategories ? activeCategoryVal : null;
-                        if (activeSport) setGroups(await sportApi.getGroups(activeSport, catId));
-                      } catch (err: any) {
-                        if (err?.response?.status === 429) show429Notification();
-                      }
-                    }}>
-                      <IconTrash size={14} />
-                    </ActionIcon>
-                  </Group>
-                </Card>
-              ))}
-            </SimpleGrid>
-          )}
+          {/* ── C. Sección de Grupos ── */}
+          <Stack gap="md">
+            <Group justify="space-between" align="center">
+              <Box>
+                <Text fw={600} size="md">Grupos configurados ({groups.length})</Text>
+                <Text size="xs" c="dimmed">
+                  Bolsa del sorteo: {assignedTeams.length} equipos inscriptos
+                </Text>
+              </Box>
+              <Group gap="xs">
+                {groups.length > 0 && (
+                  <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={openDeleteAllGroups}>
+                    Borrar todos
+                  </Button>
+                )}
+                <Button size="xs" leftSection={<IconPlus size={14} />} color="orange" disabled={assignedTeams.length === 0} onClick={() => {
+                  const initCount = Math.min(4, maxGroupsAllowed);
+                  setGroupCount(initCount);
+                  setGroupCapacity(4);
+                  setGroupCapacities(Array(initCount).fill(4));
+                  setCapacityMode('same');
+                  setNameMode('default');
+                  setGroupNames(Array(initCount).fill(''));
+                  openGroupModal();
+                }}>
+                  Crear grupos
+                </Button>
+              </Group>
+            </Group>
+
+            {groups.length === 0 ? (
+              <Text c="dimmed" size="sm" ta="center" py="lg">No hay grupos configurados todavía.</Text>
+            ) : (
+              <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
+                {groups.map(g => (
+                  <Card key={g.id} withBorder radius="md" p="sm">
+                    <Group justify="space-between">
+                      <Box>
+                        <Text fw={500} size="sm">{g.name}</Text>
+                        <Text size="xs" c="dimmed">{g.capacity} equipos por grupo</Text>
+                      </Box>
+                      <ActionIcon size="sm" variant="subtle" color="red" onClick={async () => {
+                        try {
+                          await sportApi.deleteGroup(g.id);
+                          await refreshSportData();
+                        } catch (err: any) {
+                          if (err?.response?.status === 429) show429Notification();
+                        }
+                      }}>
+                        <IconTrash size={14} />
+                      </ActionIcon>
+                    </Group>
+                  </Card>
+                ))}
+              </SimpleGrid>
+            )}
+          </Stack>
+
         </Stack>
       </Paper>
 
@@ -1034,52 +1254,163 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
         </Button>
       </Group>
 
+      {/* Modal Inscribir Equipos (con el mismo estilo elegante de Checkboxes) */}
+      <Modal opened={assignModalOpened} onClose={closeAssignModal} title={`Inscribir equipos en ${currentSport?.name}`} centered>
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Seleccioná los equipos del pool general que participarán en esta categoría/deporte.
+          </Text>
+
+          <Stack gap="xs">
+            <TextInput
+              placeholder="Buscar equipo del pool..."
+              leftSection={<IconSearch size={16} />}
+              value={searchAssignQuery}
+              onChange={e => setSearchAssignQuery(e.target.value)}
+            />
+            <Group justify="space-between" align="center">
+              <Text size="xs" c="dimmed">
+                {selectedTeamsToAssign.length} de {unassignedRaffleTeams.length} seleccionados
+              </Text>
+              <Button
+                variant="subtle"
+                size="xs"
+                onClick={handleToggleSelectAllAssign}
+                disabled={unassignedRaffleTeams.length === 0}
+              >
+                {selectedTeamsToAssign.length === unassignedRaffleTeams.length ? 'Desmarcar todos' : 'Seleccionar todos'}
+              </Button>
+            </Group>
+
+            <Paper withBorder p="xs" radius="md" style={{ maxHeight: 240, overflowY: 'auto' }}>
+              {filteredUnassignedTeams.length === 0 ? (
+                <Text size="xs" c="dimmed" ta="center" py="md">
+                  {unassignedRaffleTeams.length === 0
+                    ? 'Todos los equipos del pool ya están inscriptos en esta disciplina.'
+                    : 'No se encontraron equipos que coincidan.'}
+                </Text>
+              ) : (
+                <Stack gap="xs">
+                  {filteredUnassignedTeams.map(t => (
+                    <Checkbox
+                      key={t.id}
+                      label={`${t.name} (${t.abbreviation})`}
+                      checked={selectedTeamsToAssign.includes(t.id)}
+                      onChange={e => {
+                        if (e.currentTarget.checked) {
+                          setSelectedTeamsToAssign(prev => [...prev, t.id]);
+                        } else {
+                          setSelectedTeamsToAssign(prev => prev.filter(id => id !== t.id));
+                        }
+                      }}
+                    />
+                  ))}
+                </Stack>
+              )}
+            </Paper>
+
+            <Group justify="flex-end" mt="xs">
+              <Button variant="subtle" onClick={closeAssignModal}>Cancelar</Button>
+              <Button color="orange" loading={saving} disabled={selectedTeamsToAssign.length === 0} onClick={() => void handleAssignTeams()}>
+                Inscribir seleccionados ({selectedTeamsToAssign.length})
+              </Button>
+            </Group>
+          </Stack>
+        </Stack>
+      </Modal>
+
       {/* Modal Agregar Categorías */}
-      <Modal opened={catModalOpened} onClose={() => { closeCatModal(); setTimeout(() => addCatBtnRef.current?.focus(), 100); }} title="Agregar categoría" centered>
+      <Modal opened={catModalOpened} onClose={() => { closeCatModal(); setTimeout(() => addCatBtnRef.current?.focus(), 100); }} title="Agregar categorías" centered>
         <Stack gap="md">
           <SegmentedControl
             value={catSourceType}
             onChange={v => { setCatSourceType(v as 'predefined' | 'custom'); setCatError(undefined); }}
             data={[
-              { label: 'Usar Predefinidas', value: 'predefined' },
-              { label: 'Crear Nueva', value: 'custom' },
+              { label: 'Categorías del sistema', value: 'predefined' },
+              { label: 'Categoría personalizada', value: 'custom' },
             ]}
           />
 
           {catSourceType === 'predefined' ? (
-            <MultiSelect
-              data-autofocus
-              label="Seleccionar categorías del sistema"
-              placeholder="Seleccioná categorías..."
-              data={availableDefCats.map(c => ({ value: c.name, label: c.name }))}
-              value={selectedPredefinedCats}
-              onChange={v => { setSelectedPredefinedCats(v); setCatError(undefined); }}
-              error={catError}
-              searchable={false}
-              hidePickedOptions
-              maxDropdownHeight="50vh"
-              comboboxProps={{ shadow: 'md', withinPortal: true }}
-            />
-          ) : (
-            <TextInput
-              data-autofocus
-              label="Nombre de la nueva categoría"
-              placeholder="Ej: Masculino, Femenino, Sub-20"
-              value={customCatName}
-              error={catError}
-              onChange={e => {
-                const val = e.target.value;
-                setCustomCatName(val);
-                if (val.trim()) setCatError(undefined);
-              }}
-              onKeyDown={e => e.key === 'Enter' && void handleAddCategory()}
-            />
-          )}
+            <Stack gap="xs">
+              <TextInput
+                placeholder="Buscar categoría..."
+                leftSection={<IconSearch size={16} />}
+                value={searchCatQuery}
+                onChange={e => setSearchCatQuery(e.target.value)}
+              />
+              <Group justify="space-between" align="center">
+                <Text size="xs" c="dimmed">
+                  {selectedPredefinedCats.length} de {availableDefCats.length} seleccionadas
+                </Text>
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  onClick={handleToggleSelectAllCats}
+                  disabled={availableDefCats.length === 0}
+                >
+                  {selectedPredefinedCats.length === availableDefCats.length ? 'Desmarcar todas' : 'Seleccionar todas'}
+                </Button>
+              </Group>
 
-          <Group justify="flex-end">
-            <Button variant="subtle" onClick={() => { closeCatModal(); setTimeout(() => addCatBtnRef.current?.focus(), 100); }}>Cancelar</Button>
-            <Button color="orange" loading={saving} onClick={() => void handleAddCategory()}>Agregar</Button>
-          </Group>
+              <Paper withBorder p="xs" radius="md" style={{ maxHeight: 240, overflowY: 'auto' }}>
+                {filteredDefCats.length === 0 ? (
+                  <Text size="xs" c="dimmed" ta="center" py="md">
+                    {availableDefCats.length === 0
+                      ? 'Todas las categorías del sistema ya están en este deporte.'
+                      : 'No se encontraron categorías que coincidan.'}
+                  </Text>
+                ) : (
+                  <Stack gap="xs">
+                    {filteredDefCats.map(c => (
+                      <Checkbox
+                        key={c.id || c.name}
+                        label={c.name}
+                        checked={selectedPredefinedCats.includes(c.name)}
+                        onChange={e => {
+                          if (e.currentTarget.checked) {
+                            setSelectedPredefinedCats(prev => [...prev, c.name]);
+                          } else {
+                            setSelectedPredefinedCats(prev => prev.filter(name => name !== c.name));
+                          }
+                          setCatError(undefined);
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                )}
+              </Paper>
+
+              {catError && <Text size="xs" c="red">{catError}</Text>}
+
+              <Group justify="flex-end" mt="xs">
+                <Button variant="subtle" onClick={() => { closeCatModal(); setTimeout(() => addCatBtnRef.current?.focus(), 100); }}>Cancelar</Button>
+                <Button color="orange" loading={saving} disabled={selectedPredefinedCats.length === 0} onClick={() => void handleAddCategory()}>
+                  Agregar seleccionadas ({selectedPredefinedCats.length})
+                </Button>
+              </Group>
+            </Stack>
+          ) : (
+            <Stack gap="xs">
+              <TextInput
+                data-autofocus
+                label="Nombre de la nueva categoría"
+                placeholder="Ej: Masculino, Femenino, Sub-20"
+                value={customCatName}
+                error={catError}
+                onChange={e => {
+                  const val = e.target.value;
+                  setCustomCatName(val);
+                  if (val.trim()) setCatError(undefined);
+                }}
+                onKeyDown={e => e.key === 'Enter' && void handleAddCategory()}
+              />
+              <Group justify="flex-end" mt="xs">
+                <Button variant="subtle" onClick={() => { closeCatModal(); setTimeout(() => addCatBtnRef.current?.focus(), 100); }}>Cancelar</Button>
+                <Button color="orange" loading={saving} onClick={() => void handleAddCategory()}>Guardar</Button>
+              </Group>
+            </Stack>
+          )}
         </Stack>
       </Modal>
 
@@ -1107,7 +1438,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
       {/* Modal Eliminar Categoría Individual */}
       <Modal opened={deleteCatOpened} onClose={closeDeleteCat} title="Eliminar categoría" centered>
         <Stack>
-          <Text>¿Eliminar la categoría <strong>{deleteCatTarget?.name}</strong> de {currentSport?.name}? Se eliminarán los grupos asociados a esta categoría.</Text>
+          <Text>¿Eliminar la categoría <strong>{deleteCatTarget?.name}</strong> de {currentSport?.name}? Se eliminarán los grupos y asignaciones asociadas.</Text>
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeDeleteCat}>Cancelar</Button>
             <Button color="red" loading={saving} onClick={() => void handleDeleteCategory()}>Eliminar</Button>
@@ -1118,7 +1449,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
       {/* Modal Eliminar Todas las Categorías */}
       <Modal opened={deleteAllCatsOpened} onClose={closeDeleteAllCats} title="Eliminar todas las categorías" centered>
         <Stack>
-          <Text>¿Estás seguro de eliminar <strong>todas las categorías</strong> de {currentSport?.name}? Se eliminarán todos sus grupos asociados.</Text>
+          <Text>¿Estás seguro de eliminar <strong>todas las categorías</strong> de {currentSport?.name}?</Text>
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeDeleteAllCats}>Cancelar</Button>
             <Button color="red" loading={saving} onClick={() => void handleDeleteAllCategories()}>Eliminar todas</Button>
@@ -1126,134 +1457,136 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
         </Stack>
       </Modal>
 
-      {/* Modal de Creación de Grupos */}
+      {/* Modal Creación de Grupos */}
       <Modal opened={groupModalOpened} onClose={closeGroupModal} title="Configurar y Crear Grupos" size="lg" centered>
         <Stack gap="md">
-          {totalTeamsCount > 0 ? (
+          {assignedCount > 0 ? (
             <Alert icon={<IconInfoCircle size={16} />} color="blue" radius="md">
               <Text size="xs">
-                Este sorteo cuenta con <strong>{totalTeamsCount} equipos</strong> cargados. Los límites se calcularon según la cantidad disponible.
+                Esta disciplina cuenta con <strong>{assignedCount} equipos inscriptos</strong>. Los límites se calculan sobre este grupo.
               </Text>
             </Alert>
           ) : (
             <Alert icon={<IconAlertTriangle size={16} />} color="orange" radius="md">
               <Text size="xs">
-                No hay equipos cargados en este sorteo. Podés configurar los grupos de todas formas.
+                No hay equipos inscriptos en este deporte/categoría todavía.
               </Text>
             </Alert>
           )}
 
-          {/* Sub-sección 1: Cantidad de grupos */}
-          <Paper withBorder p="sm" radius="md">
-            <Stack gap="xs">
-              <Text fw={600} size="sm">1. Cantidad de grupos</Text>
-              <NumberInput
-                data-autofocus
-                placeholder="Ej: 4"
-                value={groupCount}
-                min={1}
-                max={maxGroupsAllowed}
-                onChange={handleGroupCountChange}
-                description={totalTeamsCount > 0 ? `Máximo ${maxGroupsAllowed} grupos (según equipos del sorteo)` : undefined}
-              />
-            </Stack>
-          </Paper>
-
-          {/* Sub-sección 2: Equipos por grupo */}
-          <Paper withBorder p="sm" radius="md">
-            <Stack gap="xs">
-              <Group justify="space-between">
-                <Text fw={600} size="sm">2. Capacidad de equipos por grupo</Text>
-                <SegmentedControl
-                  size="xs"
-                  value={capacityMode}
-                  onChange={v => setCapacityMode(v as 'same' | 'custom')}
-                  data={[
-                    { label: 'Misma capacidad', value: 'same' },
-                    { label: 'Diferente por grupo', value: 'custom' },
-                  ]}
-                />
-              </Group>
-
-              {capacityMode === 'same' ? (
+          <Paper withBorder p="md" radius="md">
+            <Stack gap="md">
+              {/* Sub-sección 1: Cantidad de grupos */}
+              <Stack gap="xs">
+                <Text fw={600} size="sm">1. Cantidad de grupos</Text>
                 <NumberInput
-                  label="Equipos por grupo"
-                  value={groupCapacity}
+                  data-autofocus
+                  placeholder="Ej: 4"
+                  value={groupCount}
                   min={1}
-                  max={totalTeamsCount > 0 ? totalTeamsCount : 50}
-                  onChange={v => setGroupCapacity(Number(v) || 1)}
+                  max={maxGroupsAllowed}
+                  onChange={handleGroupCountChange}
+                  description={assignedCount > 0 ? `Máximo ${maxGroupsAllowed} grupos (según inscriptos)` : undefined}
                 />
-              ) : (
-                <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                  {Array.from({ length: groupCount }).map((_, i) => (
-                    <NumberInput
-                      key={i}
-                      label={`Capacidad ${nameMode === 'default' ? `Grupo ${String.fromCharCode(65 + i)}` : (groupNames[i] || `Grupo ${i + 1}`)}`}
-                      value={groupCapacities[i] ?? groupCapacity}
-                      min={1}
-                      max={totalTeamsCount > 0 ? totalTeamsCount : 50}
-                      onChange={v => {
-                        const val = Number(v) || 1;
-                        setGroupCapacities(prev => { const n = [...prev]; n[i] = val; return n; });
-                      }}
-                    />
-                  ))}
-                </SimpleGrid>
-              )}
+              </Stack>
 
-              <Box style={{ minHeight: 18 }}>
-                <Text
-                  size="xs"
-                  c="red"
-                  fw={500}
-                  style={{
-                    visibility: capacityExceeds ? 'visible' : 'hidden',
-                    transition: 'opacity 0.2s ease',
-                  }}
-                >
-                  Atención: La suma total de capacidad ({calculatedTotalCapacity} cupos) supera la cantidad de equipos del sorteo ({totalTeamsCount}).
-                </Text>
-              </Box>
-            </Stack>
-          </Paper>
+              <Divider />
 
-          {/* Sub-sección 3: Nombres de los grupos */}
-          <Paper withBorder p="sm" radius="md">
-            <Stack gap="xs">
-              <Group justify="space-between">
-                <Text fw={600} size="sm">3. Nombres de los grupos</Text>
-                <SegmentedControl
-                  size="xs"
-                  value={nameMode}
-                  onChange={v => setNameMode(v as 'default' | 'custom')}
-                  data={[
-                    { label: 'Automático', value: 'default' },
-                    { label: 'Personalizado', value: 'custom' },
-                  ]}
-                />
-              </Group>
+              {/* Sub-sección 2: Equipos por grupo */}
+              <Stack gap="xs">
+                <Group justify="space-between">
+                  <Text fw={600} size="sm">2. Capacidad de equipos por grupo</Text>
+                  <SegmentedControl
+                    size="xs"
+                    value={capacityMode}
+                    onChange={v => setCapacityMode(v as 'same' | 'custom')}
+                    data={[
+                      { label: 'Misma capacidad', value: 'same' },
+                      { label: 'Diferente por grupo', value: 'custom' },
+                    ]}
+                  />
+                </Group>
 
-              {nameMode === 'default' ? (
-                <Text size="xs" c="dimmed">
-                  Los grupos se nombrarán automáticamente: {Array.from({ length: groupCount }).map((_, i) => `Grupo ${String.fromCharCode(65 + i)}`).join(', ')}.
-                </Text>
-              ) : (
-                <Stack gap="xs" mt="xs">
-                  {Array.from({ length: groupCount }).map((_, i) => (
-                    <TextInput
-                      key={i}
-                      label={`Nombre del grupo ${i + 1}`}
-                      placeholder={`Ej: Grupo ${String.fromCharCode(65 + i)}`}
-                      value={groupNames[i] ?? ''}
-                      onChange={e => {
-                        const val = e.target.value;
-                        setGroupNames(prev => { const n = [...prev]; n[i] = val; return n; });
-                      }}
-                      onKeyDown={e => e.key === 'Enter' && void handleCreateGroups()}
-                    />
-                  ))}
-                </Stack>
-              )}
+                {capacityMode === 'same' ? (
+                  <NumberInput
+                    label="Equipos por grupo"
+                    value={groupCapacity}
+                    min={1}
+                    max={assignedCount > 0 ? assignedCount : 50}
+                    onChange={v => setGroupCapacity(Number(v) || 1)}
+                  />
+                ) : (
+                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                    {Array.from({ length: groupCount }).map((_, i) => (
+                      <NumberInput
+                        key={i}
+                        label={`Capacidad ${nameMode === 'default' ? `Grupo ${String.fromCharCode(65 + i)}` : (groupNames[i] || `Grupo ${i + 1}`)}`}
+                        value={groupCapacities[i] ?? groupCapacity}
+                        min={1}
+                        max={assignedCount > 0 ? assignedCount : 50}
+                        onChange={v => {
+                          const val = Number(v) || 1;
+                          setGroupCapacities(prev => { const n = [...prev]; n[i] = val; return n; });
+                        }}
+                      />
+                    ))}
+                  </SimpleGrid>
+                )}
+
+                <Box style={{ minHeight: 18 }}>
+                  <Text
+                    size="xs"
+                    c="red"
+                    fw={500}
+                    style={{
+                      visibility: capacityExceeds ? 'visible' : 'hidden',
+                      transition: 'opacity 0.2s ease',
+                    }}
+                  >
+                    Atención: La suma total de capacidad ({calculatedTotalCapacity} cupos) supera la cantidad de inscriptos ({assignedCount}).
+                  </Text>
+                </Box>
+              </Stack>
+
+              <Divider />
+
+              {/* Sub-sección 3: Nombres de los grupos */}
+              <Stack gap="xs">
+                <Group justify="space-between">
+                  <Text fw={600} size="sm">3. Nombres de los grupos</Text>
+                  <SegmentedControl
+                    size="xs"
+                    value={nameMode}
+                    onChange={v => setNameMode(v as 'default' | 'custom')}
+                    data={[
+                      { label: 'Automático', value: 'default' },
+                      { label: 'Personalizado', value: 'custom' },
+                    ]}
+                  />
+                </Group>
+
+                {nameMode === 'default' ? (
+                  <Text size="xs" c="dimmed">
+                    Los grupos se nombrarán automáticamente: {Array.from({ length: groupCount }).map((_, i) => `Grupo ${String.fromCharCode(65 + i)}`).join(', ')}.
+                  </Text>
+                ) : (
+                  <Stack gap="xs" mt="xs">
+                    {Array.from({ length: groupCount }).map((_, i) => (
+                      <TextInput
+                        key={i}
+                        label={`Nombre del grupo ${i + 1}`}
+                        placeholder={`Ej: Grupo ${String.fromCharCode(65 + i)}`}
+                        value={groupNames[i] ?? ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setGroupNames(prev => { const n = [...prev]; n[i] = val; return n; });
+                        }}
+                        onKeyDown={e => e.key === 'Enter' && void handleCreateGroups()}
+                      />
+                    ))}
+                  </Stack>
+                )}
+              </Stack>
             </Stack>
           </Paper>
 
@@ -1291,6 +1624,18 @@ export function RaffleDetailPage() {
   useEffect(() => {
     if (!id) return;
     raffleApi.getById(id).then(async (r) => {
+      // Bloqueo de edición si el sorteo ya fue iniciado o finalizado
+      if (r.status === 'in_progress' || r.status === 'finished') {
+        notifications.show({
+          title: 'Sorteo no editable',
+          message: 'Los sorteos en progreso o finalizados no se pueden editar.',
+          color: 'red',
+          icon: <IconAlertTriangle size={18} />,
+        });
+        navigate('/raffles');
+        return;
+      }
+
       if (r.status === 'configured') {
         const resetRaffle = await raffleApi.update(r.id, { status: 'pending' });
         setRaffle(resetRaffle);
@@ -1300,7 +1645,7 @@ export function RaffleDetailPage() {
     }).catch(err => {
       if (err?.response?.status === 429) show429Notification();
     }).finally(() => setLoading(false));
-  }, [id]);
+  }, [id, navigate]);
 
   const handleFinishConfig = async () => {
     if (!raffle) return;
@@ -1344,9 +1689,9 @@ export function RaffleDetailPage() {
       {/* Wizard de Configuración de Sorteo */}
       <Card withBorder radius="md" p="xl">
         <Stepper active={activeStep} color="orange" mb="xl">
-          <Stepper.Step label="Equipos" icon={<IconUsers size={16} />} description="que participan" />
-          <Stepper.Step label="Deportes" icon={<IconRun size={16} />} description="en los que compiten" />
-          <Stepper.Step label="Grupos" icon={<IconCategory size={16} />} description="y categorías" />
+          <Stepper.Step label="Pool de Equipos" icon={<IconUsers size={16} />} description="facultades del torneo" />
+          <Stepper.Step label="Deportes" icon={<IconRun size={16} />} description="disciplinas del evento" />
+          <Stepper.Step label="Inscripciones y Grupos" icon={<IconCategory size={16} />} description="por deporte/categoría" />
         </Stepper>
 
         {activeStep === 0 && (

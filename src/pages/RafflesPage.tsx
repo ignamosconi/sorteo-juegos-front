@@ -201,11 +201,13 @@ export function RafflesPage() {
                     </Button>
                   )}
 
+                  {(raffle.status === 'pending' || raffle.status === 'configured') && (
                   <Tooltip label="Editar configuración">
                     <ActionIcon variant="subtle" color="orange" onClick={() => navigate(`/raffles/${raffle.id}`)}>
                       <IconEdit size={16} />
                     </ActionIcon>
                   </Tooltip>
+                  )}
 
                   <Tooltip label="Eliminar sorteo">
                     <ActionIcon variant="subtle" color="red" onClick={() => { setDeleteTarget(raffle); openDelete(); }}>
