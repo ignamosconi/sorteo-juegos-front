@@ -7,7 +7,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import {
   IconArrowLeft, IconArrowBackUp, IconEye, IconTrophy,
-  IconShield, IconSparkles, IconPlayerPlay,
+  IconShield, IconSparkles, IconPlayerPlay, IconCheck,
 } from '@tabler/icons-react';
 import { drawApi } from '@/api/drawApi';
 import { sportApi } from '@/api/sportApi';
@@ -317,6 +317,8 @@ export function DrawPage() {
   const remainingTeams = (fullState?.remainingTeams ?? []) as RaffleTeam[];
   const remainingGroups = (fullState?.remainingGroups ?? []) as SportCategoryGroup[];
 
+  const isCategoryFinished = drawingStage === 'team' && remainingTeams.length === 0;
+
   const handleSelectSport = async (sport: Sport) => {
     const cats = sportsWithCategories.get(sport.id) ?? [];
     setSelectedSport(sport);
@@ -560,78 +562,99 @@ export function DrawPage() {
                   </Badge>
                 </Group>
 
-                <Box ta="center">
-                  <Title order={3}>
-                    {drawingStage === 'team' ? 'Sortear Equipo' : `Sortear Grupo para ${drawnTeam?.abbreviation}`}
-                  </Title>
-                  <Text size="sm" c="dimmed" mt={4}>
-                    {drawingStage === 'team'
-                      ? `${remainingTeams.length} equipos en la bolsa`
-                      : `${remainingGroups.length} grupos con vacantes disponibles`}
-                  </Text>
-                </Box>
-
-                {/* VISOR CILINDRO 3D */}
-                {drawingStage === 'team' ? (
-                  <Cylinder3D
-                    items={remainingTeams}
-                    spinning={spinning}
-                    targetIndex={targetIndex}
-                    onLockedIn={handleTeamLockedIn}
-                    renderItem={(team) => (
-                      <Group justify="center" gap="sm" wrap="nowrap">
-                        {team.imagePath && (
-                          <Image
-                            src={getImageUrl(team.imagePath)}
-                            h={24}
-                            w={24}
-                            fit="contain"
-                          />
-                        )}
-                        <Text fw={800} size="md" style={{ whiteSpace: 'nowrap' }}>
-                          {team.abbreviation}
-                        </Text>
-                      </Group>
-                    )}
-                  />
+                {isCategoryFinished ? (
+                  <Paper
+                    withBorder
+                    radius="md"
+                    p="xl"
+                    w="100%"
+                    ta="center"
+                    style={{ background: 'light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-7))' }}
+                  >
+                    <Stack align="center" gap="xs">
+                      <IconCheck size={48} color="var(--mantine-color-green-5)" />
+                      <Title order={3}>Sorteo Finalizado</Title>
+                      <Text c="dimmed" size="sm">
+                        Esta categoría ya se terminó de sortear.
+                      </Text>
+                    </Stack>
+                  </Paper>
                 ) : (
-                  <Cylinder3D
-                    items={remainingGroups}
-                    spinning={spinning}
-                    targetIndex={targetIndex}
-                    onLockedIn={() => void handleGroupLockedIn()}
-                    renderItem={(group) => (
-                      <Text fw={800} size="lg">{group.name}</Text>
-                    )}
-                  />
-                )}
+                  <>
+                    <Box ta="center">
+                      <Title order={3}>
+                        {drawingStage === 'team' ? 'Sortear Equipo' : `Sortear Grupo para ${drawnTeam?.abbreviation}`}
+                      </Title>
+                      <Text size="sm" c="dimmed" mt={4}>
+                        {drawingStage === 'team'
+                          ? `${remainingTeams.length} equipos en la bolsa`
+                          : `${remainingGroups.length} grupos con vacantes disponibles`}
+                      </Text>
+                    </Box>
 
-                {/* BOTÓN GIRAR CILINDRO */}
-                <Group justify="center" w="100%">
-                  {!spinning ? (
-                    <Button
-                      size="xl"
-                      color="orange"
-                      radius="md"
-                      fullWidth
-                      disabled={isProcessing}
-                      leftSection={<IconPlayerPlay size={20} />}
-                      onClick={() => {
-                        if (drawingStage === 'team') {
-                          void handleDrawTeam();
-                        } else {
-                          void handleDrawGroup();
-                        }
-                      }}
-                    >
-                      Girar Cilindro
-                    </Button>
-                  ) : (
-                    <Button size="xl" color="orange" radius="md" fullWidth loading>
-                      Sorteando {drawingStage === 'team' ? 'equipo' : 'grupo'}...
-                    </Button>
-                  )}
-                </Group>
+                    {/* VISOR CILINDRO 3D */}
+                    {drawingStage === 'team' ? (
+                      <Cylinder3D
+                        items={remainingTeams}
+                        spinning={spinning}
+                        targetIndex={targetIndex}
+                        onLockedIn={handleTeamLockedIn}
+                        renderItem={(team) => (
+                          <Group justify="center" gap="sm" wrap="nowrap">
+                            {team.imagePath && (
+                              <Image
+                                src={getImageUrl(team.imagePath)}
+                                h={24}
+                                w={24}
+                                fit="contain"
+                              />
+                            )}
+                            <Text fw={800} size="md" style={{ whiteSpace: 'nowrap' }}>
+                              {team.abbreviation}
+                            </Text>
+                          </Group>
+                        )}
+                      />
+                    ) : (
+                      <Cylinder3D
+                        items={remainingGroups}
+                        spinning={spinning}
+                        targetIndex={targetIndex}
+                        onLockedIn={() => void handleGroupLockedIn()}
+                        renderItem={(group) => (
+                          <Text fw={800} size="lg">{group.name}</Text>
+                        )}
+                      />
+                    )}
+
+                    {/* BOTÓN GIRAR CILINDRO */}
+                    <Group justify="center" w="100%">
+                      {!spinning ? (
+                        <Button
+                          size="xl"
+                          color="orange"
+                          radius="md"
+                          fullWidth
+                          disabled={isProcessing}
+                          leftSection={<IconPlayerPlay size={20} />}
+                          onClick={() => {
+                            if (drawingStage === 'team') {
+                              void handleDrawTeam();
+                            } else {
+                              void handleDrawGroup();
+                            }
+                          }}
+                        >
+                          Girar Cilindro
+                        </Button>
+                      ) : (
+                        <Button size="xl" color="orange" radius="md" fullWidth loading>
+                          Sorteando {drawingStage === 'team' ? 'equipo' : 'grupo'}...
+                        </Button>
+                      )}
+                    </Group>
+                  </>
+                )}
 
                 {fullState?.results && fullState.results.length > 0 && (
                   <Button
@@ -651,7 +674,7 @@ export function DrawPage() {
         </Stack>
       </Box>
 
-      {/* MODAL 1: Equipo Sorteado (Sin recorte circular de logo) */}
+      {/* MODAL 1: Equipo Sorteado */}
       <Modal
         opened={teamModalOpened}
         onClose={() => {}}
