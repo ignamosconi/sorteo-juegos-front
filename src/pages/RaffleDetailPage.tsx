@@ -1832,6 +1832,7 @@ export function RaffleDetailPage() {
     raffleApi.getById(id).then(async (r) => {
       if (r.status === 'in_progress' || r.status === 'finished') {
         notifications.show({
+          id: 'raffle-not-editable-toast', // ← Evita duplicados en Mantine
           title: 'Sorteo no editable',
           message: 'Los sorteos en progreso o finalizados no se pueden editar.',
           color: 'red',
