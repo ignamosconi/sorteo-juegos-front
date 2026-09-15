@@ -27,7 +27,6 @@ export function ImageUploadInput({ label, value, onChange }: ImageUploadInputPro
     const validation = await validateImageFile(file);
 
     if (!validation.valid) {
-      // Muestra el mensaje de error y conserva la imagen anterior sin modificar onChange
       setError(validation.error || 'Archivo no válido');
       return;
     }
@@ -69,9 +68,13 @@ export function ImageUploadInput({ label, value, onChange }: ImageUploadInputPro
               src={displayUrl}
               w={54}
               h={54}
-              radius="md"
+              radius="xl"
               fit="contain"
-              style={{ border: '1px solid var(--mantine-color-default-border)' }}
+              p={4}
+              style={{
+                border: '1px solid var(--mantine-color-default-border)',
+                background: 'var(--mantine-color-default-hover)',
+              }}
             />
           </Box>
         )}

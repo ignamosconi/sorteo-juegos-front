@@ -252,7 +252,18 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
             <Card key={team.id} withBorder radius="md" p="sm">
               <Group justify="space-between">
                 <Group gap="sm">
-                  <Avatar src={getImageUrl(team.imagePath)} radius="xl" size="sm" alt={team.name}>
+                  <Avatar
+                    src={getImageUrl(team.imagePath)}
+                    radius="xl"
+                    size="sm"
+                    alt={team.name}
+                    styles={{
+                      image: {
+                        objectFit: 'contain',
+                        padding: '2px',
+                      },
+                    }}
+                  >
                     <IconShield size={14} />
                   </Avatar>
                   <Box>
@@ -1362,7 +1373,17 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
                     <Card key={at.id} withBorder radius="md" p="xs">
                       <Group justify="space-between">
                         <Group gap="xs">
-                          <Avatar src={getImageUrl(teamInfo?.imagePath)} radius="xl" size="xs">
+                          <Avatar
+                            src={getImageUrl(teamInfo?.imagePath)}
+                            radius="xl"
+                            size="xs"
+                            styles={{
+                              image: {
+                                objectFit: 'contain',
+                                padding: '2px',
+                              },
+                            }}
+                          >
                             <IconShield size={12} />
                           </Avatar>
                           <Box>

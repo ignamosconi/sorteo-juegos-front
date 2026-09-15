@@ -748,7 +748,18 @@ export function SystemConfigPage() {
                   <Card key={team.id} withBorder radius="md" p="sm">
                     <Group justify="space-between">
                       <Group gap="sm">
-                        <Avatar src={getImageUrl(team.imagePath)} radius="xl" size="sm" alt={team.name}>
+                        <Avatar
+                          src={getImageUrl(team.imagePath)}
+                          radius="xl"
+                          size="sm"
+                          alt={team.name}
+                          styles={{
+                            image: {
+                              objectFit: 'contain',
+                              padding: '2px',
+                            },
+                          }}
+                        >
                           <IconShield size={14} />
                         </Avatar>
                         <Box>
