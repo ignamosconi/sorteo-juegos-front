@@ -605,6 +605,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   const [raffleTeams, setRaffleTeams] = useState<RaffleTeam[]>([]);
   const [defaultCategories, setDefaultCategories] = useState<DefaultCategory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [validating, setValidating] = useState(false);
   const [activeSport, setActiveSport] = useState<string | null>(null);
 
   const [sportCategoryMap, setSportCategoryMap] = useState<Record<string, string>>({});
@@ -621,10 +622,11 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
   const [deleteCatOpened, { open: openDeleteCat, close: closeDeleteCat }] = useDisclosure(false);
   const [deleteAllCatsOpened, { open: openDeleteAllCats, close: closeDeleteAllCats }] = useDisclosure(false);
 
-  // Modal Inscripción Equipos
+  // Modal Inscripción Equipos y Borrado de Inscriptos
   const [assignModalOpened, { open: openAssignModal, close: closeAssignModal }] = useDisclosure(false);
   const [selectedTeamsToAssign, setSelectedTeamsToAssign] = useState<string[]>([]);
   const [searchAssignQuery, setSearchAssignQuery] = useState('');
+  const [deleteAllAssignedOpened, { open: openDeleteAllAssigned, close: closeDeleteAllAssigned }] = useDisclosure(false);
 
   // Modales Grupos
   const [groupModalOpened, { open: openGroupModal, close: closeGroupModal }] = useDisclosure(false);
@@ -784,6 +786,19 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
       if (err?.response?.status === 429) show429Notification();
       else notifications.show({ message: 'Error al desinscribir equipo', color: 'red' });
     }
+  };
+
+  const handleDeleteAllAssigned = async () => {
+    setSaving(true);
+    try {
+      await Promise.all(assignedTeams.map(at => sportApi.removeTeamAssignment(at.id)));
+      await refreshSportData();
+      closeDeleteAllAssigned();
+      notifications.show({ message: 'Se desinscribieron todos los equipos de esta sección', color: 'blue' });
+    } catch (err: any) {
+      if (err?.response?.status === 429) show429Notification();
+      else notifications.show({ message: 'Error al desinscribir los equipos', color: 'red' });
+    } finally { setSaving(false); }
   };
 
   // Categorías
@@ -1001,6 +1016,52 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
     } finally { setSaving(false); }
   };
 
+  // Validación final antes de terminar
+  const handleFinish = async () => {
+    setValidating(true);
+    try {
+      for (const sport of sports) {
+        if (sport.categories && sport.categories.length > 0) {
+          for (const cat of sport.categories) {
+            const grps = await sportApi.getGroups(sport.id, cat.id);
+            if (!grps || grps.length === 0) {
+              notifications.show({
+                title: 'Configuración incompleta',
+                message: `La categoría "${cat.name}" del deporte "${sport.name}" no tiene grupos configurados.`,
+                color: 'red',
+                icon: <IconAlertTriangle size={18} />,
+              });
+              setActiveSport(sport.id);
+              setSportCategoryMap(prev => ({ ...prev, [sport.id]: cat.id }));
+              setValidating(false);
+              return;
+            }
+          }
+        } else {
+          const grps = await sportApi.getGroups(sport.id, null);
+          if (!grps || grps.length === 0) {
+            notifications.show({
+              title: 'Configuración incompleta',
+              message: `El deporte "${sport.name}" no tiene grupos configurados.`,
+              color: 'red',
+              icon: <IconAlertTriangle size={18} />,
+            });
+            setActiveSport(sport.id);
+            setValidating(false);
+            return;
+          }
+        }
+      }
+
+      onDone();
+    } catch (err: any) {
+      if (err?.response?.status === 429) show429Notification();
+      else notifications.show({ message: 'Error al validar la configuración', color: 'red' });
+    } finally {
+      setValidating(false);
+    }
+  };
+
   if (loading) return <Center py="xl"><Loader color="orange" /></Center>;
 
   const assignedCount = assignedTeams.length;
@@ -1148,9 +1209,23 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
                   {currentSport?.name} {currentSport?.hasCategories ? `• ${currentSport.categories.find(c => c.id === activeCategoryVal)?.name ?? ''}` : ''}
                 </Text>
               </Box>
-              <Button size="xs" color="orange" leftSection={<IconUserCheck size={14} />} onClick={() => { setSelectedTeamsToAssign([]); setSearchAssignQuery(''); openAssignModal(); }}>
-                Inscribir equipos ({unassignedRaffleTeams.length} disponibles)
-              </Button>
+
+              <Group gap="xs">
+                {assignedTeams.length > 0 && (
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    color="red"
+                    leftSection={<IconTrash size={14} />}
+                    onClick={openDeleteAllAssigned}
+                  >
+                    Borrar inscriptos
+                  </Button>
+                )}
+                <Button size="xs" color="orange" leftSection={<IconUserCheck size={14} />} onClick={() => { setSelectedTeamsToAssign([]); setSearchAssignQuery(''); openAssignModal(); }}>
+                  Inscribir equipos ({unassignedRaffleTeams.length} disponibles)
+                </Button>
+              </Group>
             </Group>
 
             {assignedTeams.length === 0 ? (
@@ -1249,12 +1324,17 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
 
       <Group justify="space-between" mt="md">
         <Button variant="subtle" onClick={onBack}>← Volver</Button>
-        <Button color="orange" leftSection={<IconCheck size={16} />} onClick={onDone}>
+        <Button
+          color="orange"
+          leftSection={<IconCheck size={16} />}
+          loading={validating}
+          onClick={() => void handleFinish()}
+        >
           Finalizar configuración
         </Button>
       </Group>
 
-      {/* Modal Inscribir Equipos (con el mismo estilo elegante de Checkboxes) */}
+      {/* Modal Inscribir Equipos */}
       <Modal opened={assignModalOpened} onClose={closeAssignModal} title={`Inscribir equipos en ${currentSport?.name}`} centered>
         <Stack gap="md">
           <Text size="sm" c="dimmed">
@@ -1316,6 +1396,19 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
               </Button>
             </Group>
           </Stack>
+        </Stack>
+      </Modal>
+
+      {/* Modal Desinscribir Todos los Equipos de esta Sección */}
+      <Modal opened={deleteAllAssignedOpened} onClose={closeDeleteAllAssigned} title="Desinscribir todos los equipos" centered>
+        <Stack>
+          <Text>
+            ¿Estás seguro de que querés desinscribir <strong>todos los equipos ({assignedTeams.length})</strong> de esta sección?
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={closeDeleteAllAssigned}>Cancelar</Button>
+            <Button color="red" loading={saving} onClick={() => void handleDeleteAllAssigned()}>Desinscribir todos</Button>
+          </Group>
         </Stack>
       </Modal>
 
@@ -1459,10 +1552,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
 
       {/* Modal Creación de Grupos */}
       <Modal opened={groupModalOpened} onClose={closeGroupModal} title="Configurar y Crear Grupos" size="lg" centered>
-
         <Stack gap="md">
-
-
           <Paper withBorder p="md" radius="md">
             <Stack gap="md">
               {/* Sub-sección 1: Cantidad de grupos */}
