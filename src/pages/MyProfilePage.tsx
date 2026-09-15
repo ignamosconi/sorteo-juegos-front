@@ -119,7 +119,7 @@ export function MyProfilePage() {
       >
         <Tabs.Tab 
           value="perfil" 
-          data-value="perfil" // <-- Agregá esto
+          data-value="perfil"
           leftSection={<IconUser size={14} />} 
           style={{ whiteSpace: 'nowrap' }}
         >
@@ -128,7 +128,7 @@ export function MyProfilePage() {
         
         <Tabs.Tab 
           value="2fa" 
-          data-value="2fa" // <-- Agregá esto
+          data-value="2fa"
           leftSection={<IconShieldOff size={14} />} 
           style={{ whiteSpace: 'nowrap' }}
         >
