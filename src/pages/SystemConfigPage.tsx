@@ -10,6 +10,7 @@ import {
   IconPlus, IconTrash, IconEdit, IconDeviceFloppy, IconShield,
   IconLayoutNavbar, IconWorld, IconTrophy, IconAlertTriangle,
   IconRotate2, IconTool, IconUser, IconUsers, IconRun,
+  IconRefresh, IconTrashX,
 } from '@tabler/icons-react';
 import { systemConfigApi } from '@/api/systemConfigApi';
 import { defaultCategoryApi } from '@/api/defaultCategoryApi';
@@ -74,6 +75,25 @@ export function SystemConfigPage() {
   const [deleteTeam, setDeleteTeam] = useState<GlobalTeam | null>(null);
   const [teamOpened, { open: openTeam, close: closeTeam }] = useDisclosure(false);
   const [deleteTeamOpened, { open: openDeleteTeam, close: closeDeleteTeam }] = useDisclosure(false);
+
+  const [cleaningOrphans, setCleaningOrphans] = useState(false);
+  const handleCleanOrphans = async () => {
+    setCleaningOrphans(true);
+    try {
+      const res = await fileUploadApi.cleanOrphans();
+      notifications.show({
+        title: 'Mantenimiento de imágenes',
+        message: res.deletedCount > 0
+          ? `Se eliminaron ${res.deletedCount} imágenes sin uso del servidor.`
+          : 'No se encontraron imágenes huérfanas.',
+        color: 'blue',
+      });
+    } catch {
+      notifications.show({ message: 'Error al limpiar imágenes huérfanas', color: 'red' });
+    } finally {
+      setCleaningOrphans(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -440,6 +460,14 @@ export function SystemConfigPage() {
             General
           </Tabs.Tab>
           <Tabs.Tab
+            value="teams"
+            data-value="teams"
+            leftSection={<IconUsers size={14} />}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            Equipos por defecto
+          </Tabs.Tab>
+          <Tabs.Tab
             value="sports"
             data-value="sports"
             leftSection={<IconRun size={14} />}
@@ -455,19 +483,11 @@ export function SystemConfigPage() {
           >
             Categorías por defecto
           </Tabs.Tab>
-          <Tabs.Tab
-            value="teams"
-            data-value="teams"
-            leftSection={<IconUsers size={14} />}
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            Equipos del sistema
-          </Tabs.Tab>
         </Tabs.List>
 
         {/* ── General (Cajones / Accordion) ── */}
         <Tabs.Panel value="general">
-          <Stack gap="md">
+          <Stack gap="md" mt="md">
             <Accordion
               variant="separated"
               radius="md"
@@ -477,7 +497,7 @@ export function SystemConfigPage() {
             >
               <Accordion.Item value="admin-panel">
                 <Accordion.Control icon={<IconLayoutNavbar size={18} />}>
-                  <Text fw={600}>Apariencia del panel de administración</Text>
+                  <Text fw={600}>Apariencia - Panel de administración</Text>
                 </Accordion.Control>
                 <Accordion.Panel>
                   <Stack gap="md" pt="xs">
@@ -523,7 +543,7 @@ export function SystemConfigPage() {
 
               <Accordion.Item value="public-view">
                 <Accordion.Control icon={<IconWorld size={18} />}>
-                  <Text fw={600}>Vista pública del sorteo</Text>
+                  <Text fw={600}>Apariencia - Vista pública del sorteo</Text>
                 </Accordion.Control>
                 <Accordion.Panel>
                   <Stack gap="md" pt="xs">
@@ -564,7 +584,7 @@ export function SystemConfigPage() {
 
               <Accordion.Item value="raffles">
                 <Accordion.Control icon={<IconTrophy size={18} />}>
-                  <Text fw={600}>Sorteos</Text>
+                  <Text fw={600}>Nombres por defecto de Grupos</Text>
                 </Accordion.Control>
                 <Accordion.Panel>
                   <Stack gap="md" pt="xs">
@@ -590,6 +610,34 @@ export function SystemConfigPage() {
                       value={configForm.defaultGroupSequence ?? 'ALPHA_UPPER'}
                       onChange={val => setConfigForm(f => ({ ...f, defaultGroupSequence: val || 'ALPHA_UPPER' }))}
                     />
+                  </Stack>
+                </Accordion.Panel>
+              </Accordion.Item>
+
+              {/* Mantenimiento de almacenamiento */}
+              <Accordion.Item value="maintenance">
+                <Accordion.Control icon={<IconRefresh size={18} />}>
+                  <Text fw={600}>Limpieza de imágenes sin usar</Text>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <Stack gap="md" pt="xs">
+                    <Group justify="space-between" align="center" wrap="wrap" gap="md">
+                      <Box style={{ flex: 1, minWidth: 260 }}>
+                        <Text size="sm" fw={500}>Limpieza de imágenes huérfanas</Text>
+                        <Text size="xs" c="dimmed">
+                          Escanea el servidor y elimina imágenes que hayan quedado subidas pero no pertenezcan a ningún equipo ni configuración del sistema.
+                        </Text>
+                      </Box>
+                      <Button
+                        variant="light"
+                        color="orange"
+                        leftSection={<IconTrashX size={16} />}
+                        loading={cleaningOrphans}
+                        onClick={() => void handleCleanOrphans()}
+                      >
+                        Limpiar imágenes sin uso
+                      </Button>
+                    </Group>
                   </Stack>
                 </Accordion.Panel>
               </Accordion.Item>
@@ -622,6 +670,72 @@ export function SystemConfigPage() {
                 </Button>
               </Group>
             </Group>
+          </Stack>
+        </Tabs.Panel>
+
+        {/* ── Equipos del sistema ── */}
+        <Tabs.Panel value="teams">
+          <Stack gap="md">
+            <Paper withBorder radius="md" p="md">
+              <Group justify="space-between">
+                <Box>
+                  <Text fw={500}>Equipos por defecto</Text>
+                  <Text size="sm" c="dimmed">Pool de equipos reutilizables que podés importar en cualquier sorteo.</Text>
+                </Box>
+                <Button
+                  ref={addTeamBtnRef}
+                  size="sm"
+                  leftSection={<IconPlus size={14} />}
+                  color="orange"
+                  onClick={() => { setEditTeam(null); setTeamForm({ name: '', abbreviation: '', imagePath: '' }); setTeamErrors({}); openTeam(); }}
+                >
+                  Agregar
+                </Button>
+              </Group>
+            </Paper>
+
+            {teams.length === 0 ? (
+              <Text c="dimmed" size="sm">No hay equipos cargados en el sistema.</Text>
+            ) : (
+              <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
+                {teams.map(team => (
+                  <Card key={team.id} withBorder radius="md" p="sm">
+                    <Group justify="space-between">
+                      <Group gap="sm">
+                        <Avatar
+                          src={getImageUrl(team.imagePath)}
+                          radius="xl"
+                          size="sm"
+                          alt={team.name}
+                          styles={{
+                            image: {
+                              objectFit: 'contain',
+                              padding: '2px',
+                            },
+                          }}
+                        >
+                          <IconShield size={14} />
+                        </Avatar>
+                        <Box>
+                          <Text fw={500} size="sm">{team.name}</Text>
+                          <Text size="xs" c="dimmed">{team.abbreviation}</Text>
+                        </Box>
+                      </Group>
+                      <Group gap={4}>
+                        <ActionIcon size="sm" variant="subtle" color="orange"
+                          onClick={() => { setEditTeam(team); setTeamForm({ name: team.name, abbreviation: team.abbreviation, imagePath: team.imagePath || '' }); setTeamErrors({}); openTeam(); }}>
+                          <IconEdit size={14} />
+                        </ActionIcon>
+                        <ActionIcon size="sm" variant="subtle" color="red"
+                          onClick={() => { setDeleteTeam(team); openDeleteTeam(); }}>
+                          <IconTrash size={14} />
+                        </ActionIcon>
+                      </Group>
+                    </Group>
+                  </Card>
+                ))}
+              </SimpleGrid>
+            )}
           </Stack>
         </Tabs.Panel>
 
@@ -715,72 +829,6 @@ export function SystemConfigPage() {
                   </Card>
                 ))}
               </Stack>
-            )}
-          </Stack>
-        </Tabs.Panel>
-
-        {/* ── Equipos del sistema ── */}
-        <Tabs.Panel value="teams">
-          <Stack gap="md">
-            <Paper withBorder radius="md" p="md">
-              <Group justify="space-between">
-                <Box>
-                  <Text fw={500}>Equipos del sistema</Text>
-                  <Text size="sm" c="dimmed">Pool de equipos reutilizables que podés importar en cualquier sorteo.</Text>
-                </Box>
-                <Button
-                  ref={addTeamBtnRef}
-                  size="sm"
-                  leftSection={<IconPlus size={14} />}
-                  color="orange"
-                  onClick={() => { setEditTeam(null); setTeamForm({ name: '', abbreviation: '', imagePath: '' }); setTeamErrors({}); openTeam(); }}
-                >
-                  Agregar
-                </Button>
-              </Group>
-            </Paper>
-
-            {teams.length === 0 ? (
-              <Text c="dimmed" size="sm">No hay equipos cargados en el sistema.</Text>
-            ) : (
-              <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-                {teams.map(team => (
-                  <Card key={team.id} withBorder radius="md" p="sm">
-                    <Group justify="space-between">
-                      <Group gap="sm">
-                        <Avatar
-                          src={getImageUrl(team.imagePath)}
-                          radius="xl"
-                          size="sm"
-                          alt={team.name}
-                          styles={{
-                            image: {
-                              objectFit: 'contain',
-                              padding: '2px',
-                            },
-                          }}
-                        >
-                          <IconShield size={14} />
-                        </Avatar>
-                        <Box>
-                          <Text fw={500} size="sm">{team.name}</Text>
-                          <Text size="xs" c="dimmed">{team.abbreviation}</Text>
-                        </Box>
-                      </Group>
-                      <Group gap={4}>
-                        <ActionIcon size="sm" variant="subtle" color="orange"
-                          onClick={() => { setEditTeam(team); setTeamForm({ name: team.name, abbreviation: team.abbreviation, imagePath: team.imagePath || '' }); setTeamErrors({}); openTeam(); }}>
-                          <IconEdit size={14} />
-                        </ActionIcon>
-                        <ActionIcon size="sm" variant="subtle" color="red"
-                          onClick={() => { setDeleteTeam(team); openDeleteTeam(); }}>
-                          <IconTrash size={14} />
-                        </ActionIcon>
-                      </Group>
-                    </Group>
-                  </Card>
-                ))}
-              </SimpleGrid>
             )}
           </Stack>
         </Tabs.Panel>

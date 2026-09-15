@@ -20,4 +20,9 @@ export const fileUploadApi = {
     if (!path) return;
     await apiClient.delete('/uploads/image', { data: { path } }).catch(() => {});
   },
+
+  cleanOrphans: async (): Promise<{ deletedCount: number }> => {
+    const response = await apiClient.delete<{ deletedCount: number }>('/uploads/orphans');
+    return response.data;
+  },
 };
