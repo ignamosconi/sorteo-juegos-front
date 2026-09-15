@@ -641,7 +641,7 @@ export function SystemConfigPage() {
               </Button>
             </Group>
           </Stack>
-        </Box>
+        </Box> 
       </Modal>
 
       {/* Category Modals */}
