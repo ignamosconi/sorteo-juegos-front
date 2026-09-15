@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box, Text, Button, Group, Stack, Card, Center, Loader,
-  Modal, SimpleGrid, Badge, Title, Paper, Avatar, Divider, Table, Image,
+  Modal, SimpleGrid, Badge, Title, Paper, Divider, Table, Image,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
@@ -16,7 +16,7 @@ import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { getImageUrl } from '@/utils/imageUrl';
 import type {
   Raffle, Sport, SportCategory, FullDrawState, RaffleTeam,
-  SportCategoryGroup, DrawResult,
+  SportCategoryGroup, DrawResult, PublicResultsResponse,
 } from '@/types/api.types';
 
 const notifyPublicUpdate = () => {
@@ -49,6 +49,12 @@ function Cylinder3D<T>({
   const animFrameRef = useRef<number | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lockedTriggeredRef = useRef(false);
+
+  // Mantenemos la referencia de callback aislada para evitar ciclos de renderizado
+  const onLockedInRef = useRef(onLockedIn);
+  useEffect(() => {
+    onLockedInRef.current = onLockedIn;
+  }, [onLockedIn]);
 
   const [displayAngle, setDisplayAngle] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
@@ -107,7 +113,7 @@ function Cylinder3D<T>({
           if (!lockedTriggeredRef.current) {
             lockedTriggeredRef.current = true;
             timeoutRef.current = setTimeout(() => {
-              onLockedIn();
+              onLockedInRef.current();
             }, 1000);
           }
           return;
@@ -125,7 +131,7 @@ function Cylinder3D<T>({
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [spinning, targetIndex, faceAngle, faceCount, items, onLockedIn]);
+  }, [spinning, targetIndex, faceAngle, faceCount, items]);
 
   return (
     <Box
@@ -250,6 +256,7 @@ export function DrawPage() {
   const [sports, setSports] = useState<Sport[]>([]);
   const [sportsWithCategories, setSportsWithCategories] = useState<Map<string, SportCategory[]>>(new Map());
   const [fullState, setFullState] = useState<FullDrawState | null>(null);
+  const [publicData, setPublicData] = useState<PublicResultsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [selectedSport, setSelectedSport] = useState<Sport | null>(null);
@@ -273,9 +280,10 @@ export function DrawPage() {
     try {
       const r = await drawApi.getByDrawSlug(drawSlug);
       setRaffle(r);
-      const [sportsData, state] = await Promise.all([
+      const [sportsData, state, pubData] = await Promise.all([
         sportApi.getByRaffle(r.id),
         drawApi.getState(r.id),
+        r.publicSlug ? drawApi.getPublicResults(r.publicSlug) : Promise.resolve(null),
       ]);
       const catMap = new Map<string, SportCategory[]>();
       await Promise.all(
@@ -287,6 +295,7 @@ export function DrawPage() {
       setSports(sportsData);
       setSportsWithCategories(catMap);
       setFullState(state);
+      if (pubData) setPublicData(pubData);
 
       if (state?.state?.currentSportId) {
         const sport = sportsData.find((s) => s.id === state.state!.currentSportId);
@@ -314,10 +323,41 @@ export function DrawPage() {
     void loadAll();
   }, [loadAll]);
 
+  const refreshPublicData = useCallback(async () => {
+    if (raffle?.publicSlug) {
+      try {
+        const pubData = await drawApi.getPublicResults(raffle.publicSlug);
+        setPublicData(pubData);
+      } catch {
+        // ignorar
+      }
+    }
+  }, [raffle]);
+
   const remainingTeams = (fullState?.remainingTeams ?? []) as RaffleTeam[];
   const remainingGroups = (fullState?.remainingGroups ?? []) as SportCategoryGroup[];
 
   const isCategoryFinished = drawingStage === 'team' && remainingTeams.length === 0;
+
+  const isSportCompleted = useCallback((sportId: string): boolean => {
+    if (!publicData) return false;
+    const sData = publicData.sports.find((s) => s.sport.id === sportId);
+    if (!sData) return false;
+    const allGroups = sData.sections.flatMap((sec) => sec.groups);
+    if (allGroups.length === 0) return false;
+    return allGroups.every((g) => g.results.length >= g.capacity);
+  }, [publicData]);
+
+  const getCategoryTotalGroupsCount = useCallback((): number => {
+    if (!selectedSport || !publicData) return 0;
+    const sData = publicData.sports.find((s) => s.sport.id === selectedSport.id);
+    if (!sData) return 0;
+    const targetCatId = selectedCategory?.id ?? null;
+    const section = sData.sections.find((sec) => (sec.category?.id ?? null) === targetCatId);
+    return section?.groups.length ?? 0;
+  }, [selectedSport, selectedCategory, publicData]);
+
+  const hasSingleGroupInCategory = getCategoryTotalGroupsCount() === 1;
 
   const handleSelectSport = async (sport: Sport) => {
     const cats = sportsWithCategories.get(sport.id) ?? [];
@@ -350,7 +390,7 @@ export function DrawPage() {
   };
 
   const handleDrawTeam = async () => {
-    if (spinning && targetIndex !== null) return;
+    if (spinning || isProcessing) return;
     handleStartSpin();
     try {
       const res = await drawApi.drawTeam(raffle!.id);
@@ -367,11 +407,29 @@ export function DrawPage() {
     }
   };
 
-  const handleTeamLockedIn = useCallback(() => {
+  const handleTeamLockedIn = useCallback(async () => {
     setSpinning(false);
     setIsProcessing(false);
-    openTeamModal();
-  }, [openTeamModal]);
+
+    if (hasSingleGroupInCategory) {
+      try {
+        const res = await drawApi.drawGroup(raffle!.id);
+        setDrawnResult(res.result);
+        const newState = await drawApi.getState(raffle!.id);
+        setFullState(newState);
+        notifyPublicUpdate();
+        void refreshPublicData();
+        openResultModal();
+      } catch (err: any) {
+        notifications.show({
+          message: err?.response?.data?.message || 'Error al asignar grupo',
+          color: 'red',
+        });
+      }
+    } else {
+      openTeamModal();
+    }
+  }, [hasSingleGroupInCategory, raffle, openResultModal, openTeamModal, refreshPublicData]);
 
   // ── 2. Sorteo de Grupo ──
   const handlePrepareGroupDraw = () => {
@@ -381,7 +439,7 @@ export function DrawPage() {
   };
 
   const handleDrawGroup = async () => {
-    if (isProcessing) return;
+    if (spinning || isProcessing) return;
     handleStartSpin();
     try {
       const res = await drawApi.drawGroup(raffle!.id);
@@ -405,8 +463,9 @@ export function DrawPage() {
     const newState = await drawApi.getState(raffle.id);
     setFullState(newState);
     notifyPublicUpdate();
+    void refreshPublicData();
     openResultModal();
-  }, [raffle, openResultModal]);
+  }, [raffle, openResultModal, refreshPublicData]);
 
   const handleNextTeamDraw = () => {
     closeResultModal();
@@ -434,6 +493,7 @@ export function DrawPage() {
       setIsProcessing(false);
       setDrawingStage('team');
       notifyPublicUpdate();
+      void refreshPublicData();
       closeUndo();
       notifications.show({ message: 'Último sorteo deshecho', color: 'blue' });
     } catch {
@@ -500,19 +560,44 @@ export function DrawPage() {
               <Stack gap="md">
                 <Text fw={700} ta="center" size="lg">Seleccioná un Deporte para Sortear</Text>
                 <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                  {sports.map((s) => (
-                    <Card
-                      key={s.id}
-                      withBorder
-                      radius="md"
-                      p="lg"
-                      ta="center"
-                      style={{ cursor: 'pointer', transition: 'transform 150ms' }}
-                      onClick={() => void handleSelectSport(s)}
-                    >
-                      <Text fw={800} size="xl">{s.name.toUpperCase()}</Text>
-                    </Card>
-                  ))}
+                  {sports.map((s) => {
+                    const completed = isSportCompleted(s.id);
+                    return (
+                      <Card
+                        key={s.id}
+                        withBorder
+                        radius="md"
+                        p="lg"
+                        style={{
+                          cursor: 'pointer',
+                          transition: 'transform 150ms',
+                          borderColor: completed ? 'var(--mantine-color-green-5)' : undefined,
+                          background: completed
+                            ? 'light-dark(rgba(40, 199, 111, 0.08), rgba(40, 199, 111, 0.15))'
+                            : undefined,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minHeight: 110,
+                        }}
+                        onClick={() => void handleSelectSport(s)}
+                      >
+                        <Stack gap={6} align="center" justify="center" w="100%">
+                          <Text fw={800} size="xl" ta="center">{s.name.toUpperCase()}</Text>
+                          {completed && (
+                            <Badge
+                              color="green"
+                              variant="light"
+                              size="sm"
+                              leftSection={<IconCheck size={12} />}
+                            >
+                              Sorteo Finalizado
+                            </Badge>
+                          )}
+                        </Stack>
+                      </Card>
+                    );
+                  })}
                 </SimpleGrid>
               </Stack>
             </Card>
@@ -532,11 +617,16 @@ export function DrawPage() {
                       withBorder
                       radius="md"
                       p="lg"
-                      ta="center"
-                      style={{ cursor: 'pointer' }}
+                      style={{
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: 80,
+                      }}
                       onClick={() => void handleSelectCategory(cat)}
                     >
-                      <Text fw={700}>{cat.name}</Text>
+                      <Text fw={700} ta="center">{cat.name}</Text>
                     </Card>
                   ))}
                 </SimpleGrid>
@@ -598,7 +688,7 @@ export function DrawPage() {
                         items={remainingTeams}
                         spinning={spinning}
                         targetIndex={targetIndex}
-                        onLockedIn={handleTeamLockedIn}
+                        onLockedIn={() => void handleTeamLockedIn()}
                         renderItem={(team) => (
                           <Group justify="center" gap="sm" wrap="nowrap">
                             {team.imagePath && (
