@@ -229,7 +229,7 @@ function TeamsStep({ raffleId, onDone }: { raffleId: string; onDone: () => void 
 
       {teams.length === 0 ? (
         <Card withBorder radius="md" p="xl" ta="center">
-          <Text c="dimmed" size="sm" mb="md">No hay equipos cargados en el sorteo todavía.</Text>
+          <Text c="dimmed" size="sm" mb="md">Todavía no hay equipos cargados en el sorteo.</Text>
         </Card>
       ) : (
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -510,7 +510,7 @@ function SportsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
 
       {sports.length === 0 ? (
         <Card withBorder radius="md" p="lg" ta="center">
-          <Text c="dimmed" size="sm">No hay deportes cargados todavía.</Text>
+          <Text c="dimmed" size="sm">Todavía no hay deportes cargados.</Text>
         </Card>
       ) : (
         <Stack gap="xs">
@@ -1047,9 +1047,9 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
           <Stack gap="sm">
             <Group justify="space-between" align="center">
               <Group gap="xs">
-                <Text fw={600} size="sm">Categorías de {currentSport?.name}:</Text>
+                <Text fw={600} size="sm">Categorías:</Text>
                 {currentSport?.categories.length === 0 && (
-                  <Text size="sm" c="dimmed">(General - Sin categorías)</Text>
+                  <Text size="sm" c="dimmed">Sin categorías</Text>
                 )}
               </Group>
               <Group gap="xs">
@@ -1155,7 +1155,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
 
             {assignedTeams.length === 0 ? (
               <Text c="dimmed" size="sm" ta="center" py="md">
-                No hay equipos inscriptos en esta disciplina aún.
+                Todavía no hay equipos inscriptos en esta categoría.
               </Text>
             ) : (
               <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
@@ -1217,7 +1217,7 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
             </Group>
 
             {groups.length === 0 ? (
-              <Text c="dimmed" size="sm" ta="center" py="lg">No hay grupos configurados todavía.</Text>
+              <Text c="dimmed" size="sm" ta="center" py="lg">Todavía no hay grupos configurados.</Text>
             ) : (
               <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
                 {groups.map(g => (
@@ -1459,20 +1459,9 @@ function GroupsStep({ raffleId, onDone, onBack }: { raffleId: string; onDone: ()
 
       {/* Modal Creación de Grupos */}
       <Modal opened={groupModalOpened} onClose={closeGroupModal} title="Configurar y Crear Grupos" size="lg" centered>
+
         <Stack gap="md">
-          {assignedCount > 0 ? (
-            <Alert icon={<IconInfoCircle size={16} />} color="blue" radius="md">
-              <Text size="xs">
-                Esta disciplina cuenta con <strong>{assignedCount} equipos inscriptos</strong>. Los límites se calculan sobre este grupo.
-              </Text>
-            </Alert>
-          ) : (
-            <Alert icon={<IconAlertTriangle size={16} />} color="orange" radius="md">
-              <Text size="xs">
-                No hay equipos inscriptos en este deporte/categoría todavía.
-              </Text>
-            </Alert>
-          )}
+
 
           <Paper withBorder p="md" radius="md">
             <Stack gap="md">
@@ -1689,9 +1678,9 @@ export function RaffleDetailPage() {
       {/* Wizard de Configuración de Sorteo */}
       <Card withBorder radius="md" p="xl">
         <Stepper active={activeStep} color="orange" mb="xl">
-          <Stepper.Step label="Pool de Equipos" icon={<IconUsers size={16} />} description="facultades del torneo" />
-          <Stepper.Step label="Deportes" icon={<IconRun size={16} />} description="disciplinas del evento" />
-          <Stepper.Step label="Inscripciones y Grupos" icon={<IconCategory size={16} />} description="por deporte/categoría" />
+          <Stepper.Step label="Pool de equipos" icon={<IconUsers size={16} />} description="participantes del torneo." />
+          <Stepper.Step label="Deportes" icon={<IconRun size={16} />} description="en los que se compite." />
+          <Stepper.Step label="Grupos" icon={<IconCategory size={16} />} description="según deporte y categoría." />
         </Stepper>
 
         {activeStep === 0 && (
