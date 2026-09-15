@@ -1,19 +1,19 @@
 import { useState, useRef } from 'react';
 import {
   Box, Title, Text, TextInput, PasswordInput,
-  Button, Alert, Tabs, Paper,
+  Button, Alert, Tabs, Paper, Stack,
 } from '@mantine/core';
 import { IconAlertCircle, IconCheck, IconShieldOff, IconUser } from '@tabler/icons-react';
 import { adminsApi } from '@/api/adminApi';
 import { useAuthStore } from '@/store/authStore';
 import { useAuth } from '@/hooks/useAuth';
-import { UpdateAdminPayload } from '@/types/api.types';
 
 export function MyProfilePage() {
   const { adminUsername, setTokens, accessToken, refreshToken } = useAuthStore();
   const { reset2fa } = useAuth();
 
   const [username, setUsername] = useState(adminUsername ?? '');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState(false);
@@ -30,26 +30,19 @@ export function MyProfilePage() {
     if (!value || !tabsListRef.current) return;
     const container = tabsListRef.current;
     
-    // Ahora sí va a encontrar el elemento porque le vamos a agregar el atributo abajo
     const activeTab = container.querySelector(`[data-value="${value}"]`) as HTMLElement | null;
     if (!activeTab) return;
 
-    // getBoundingClientRect nos da la posición exacta en la pantalla 
-    // independientemente de los parents y el CSS
     const tabRect = activeTab.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
-
-    // Margen de cortesía para que no quede pegado al borde
     const padding = 16; 
 
     if (tabRect.left < containerRect.left) {
-      // Si el tab está escondido hacia la izquierda
       container.scrollBy({ 
         left: tabRect.left - containerRect.left - padding, 
         behavior: 'smooth' 
       });
     } else if (tabRect.right > containerRect.right) {
-      // Si el tab está escondido hacia la derecha
       container.scrollBy({ 
         left: tabRect.right - containerRect.right + padding, 
         behavior: 'smooth' 
@@ -61,18 +54,30 @@ export function MyProfilePage() {
     e.preventDefault();
     setProfileError(null);
     setProfileSuccess(false);
+
+    const hasUsernameChange = username !== adminUsername;
+    const hasPasswordChange = Boolean(password);
+
+    if (!hasUsernameChange && !hasPasswordChange) {
+      setProfileError('No hay cambios para guardar.');
+      return;
+    }
+
+    if (!currentPassword) {
+      setProfileError('Ingresá tu contraseña actual para confirmar los cambios.');
+      return;
+    }
+
     setProfileLoading(true);
     try {
-      const payload: UpdateAdminPayload = {};
-      if (username !== adminUsername) payload.username = username;
-      if (password) payload.password = password;
-      if (Object.keys(payload).length === 0) {
-        setProfileError('No hay cambios para guardar.');
-        return;
-      }
-      await adminsApi.updateSelf(payload);
+      const payload: Record<string, string> = { currentPassword };
+      if (hasUsernameChange) payload.username = username;
+      if (hasPasswordChange) payload.password = password;
+
+      await adminsApi.updateSelf(payload as any);
       setProfileSuccess(true);
       setPassword('');
+      setCurrentPassword('');
       if (accessToken && refreshToken) setTokens(accessToken, refreshToken);
     } catch (err) {
       const axiosError = err as { response?: { data?: { message?: string } } };
@@ -107,34 +112,34 @@ export function MyProfilePage() {
       </Text>
 
       <Tabs defaultValue="perfil" variant="outline" radius="md" onChange={handleTabChange}>
-      <Tabs.List
-        ref={tabsListRef}
-        mb="lg"
-        style={{
-          flexWrap: 'nowrap',
-          overflowX: 'auto',
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-        }}
-      >
-        <Tabs.Tab 
-          value="perfil" 
-          data-value="perfil"
-          leftSection={<IconUser size={14} />} 
-          style={{ whiteSpace: 'nowrap' }}
+        <Tabs.List
+          ref={tabsListRef}
+          mb="lg"
+          style={{
+            flexWrap: 'nowrap',
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          }}
         >
-          Datos personales
-        </Tabs.Tab>
-        
-        <Tabs.Tab 
-          value="2fa" 
-          data-value="2fa"
-          leftSection={<IconShieldOff size={14} />} 
-          style={{ whiteSpace: 'nowrap' }}
-        >
-          Autenticador 2FA
-        </Tabs.Tab>
-      </Tabs.List>
+          <Tabs.Tab 
+            value="perfil" 
+            data-value="perfil"
+            leftSection={<IconUser size={14} />} 
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            Datos personales
+          </Tabs.Tab>
+          
+          <Tabs.Tab 
+            value="2fa" 
+            data-value="2fa"
+            leftSection={<IconShieldOff size={14} />} 
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            Autenticador 2FA
+          </Tabs.Tab>
+        </Tabs.List>
 
         {/* ── Tab: Datos personales ── */}
         <Tabs.Panel value="perfil">
@@ -150,30 +155,43 @@ export function MyProfilePage() {
               </Alert>
             )}
             <form onSubmit={(e) => void handleProfileSubmit(e)}>
-              <TextInput
-                label="Usuario"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                mb="sm"
-                required
-                minLength={3}
-              />
-              <PasswordInput
-                label="Nueva contraseña"
-                description="Dejá vacío si no querés cambiarla."
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                mb="lg"
-                minLength={8}
-              />
-              <Button
-                type="submit"
-                fullWidth
-                loading={profileLoading}
-                style={{ background: '#f5a705', color: '#1a1200' }}
-              >
-                Guardar cambios
-              </Button>
+              <Stack gap="sm">
+                <TextInput
+                  label="Usuario"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  minLength={3}
+                />
+
+                <PasswordInput
+                  label="Nueva contraseña"
+                  description="Dejá vacío si no querés cambiarla."
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  minLength={8}
+                />
+
+                <PasswordInput
+                  label="Contraseña actual"
+                  description="Requerida para confirmar los cambios de perfil."
+                  placeholder="••••••••"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  required
+                />
+
+                <Button
+                  type="submit"
+                  fullWidth
+                  mt="md"
+                  loading={profileLoading}
+                  style={{ background: '#f5a705', color: '#1a1200' }}
+                >
+                  Guardar cambios
+                </Button>
+              </Stack>
             </form>
           </Paper>
         </Tabs.Panel>
