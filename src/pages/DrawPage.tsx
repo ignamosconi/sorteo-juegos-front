@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box, Text, Button, Group, Stack, Card, Center, Loader,
-  Modal, SimpleGrid, Badge, Title, Paper, Avatar, Divider, Table,
+  Modal, SimpleGrid, Badge, Title, Paper, Avatar, Divider, Table, Image,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
@@ -47,6 +47,7 @@ function Cylinder3D<T>({
   const angleRef = useRef(0);
   const speedRef = useRef(0);
   const animFrameRef = useRef<number | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lockedTriggeredRef = useRef(false);
 
   const [displayAngle, setDisplayAngle] = useState(0);
@@ -75,6 +76,8 @@ function Cylinder3D<T>({
   useEffect(() => {
     setIsLocked(false);
     lockedTriggeredRef.current = false;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
     let targetAngle: number | null = null;
 
     const animate = () => {
@@ -103,7 +106,7 @@ function Cylinder3D<T>({
 
           if (!lockedTriggeredRef.current) {
             lockedTriggeredRef.current = true;
-            setTimeout(() => {
+            timeoutRef.current = setTimeout(() => {
               onLockedIn();
             }, 1000);
           }
@@ -120,6 +123,7 @@ function Cylinder3D<T>({
     animFrameRef.current = requestAnimationFrame(animate);
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [spinning, targetIndex, faceAngle, faceCount, items, onLockedIn]);
 
@@ -150,7 +154,6 @@ function Cylinder3D<T>({
         textRendering: 'optimizeLegibility',
       }}
     >
-      {/* Sombra de curvatura 3D superior e inferior */}
       <Box
         style={{
           position: 'absolute',
@@ -168,7 +171,6 @@ function Cylinder3D<T>({
         }}
       />
 
-      {/* Selector central con animación Lock-In */}
       <Box
         style={{
           position: 'absolute',
@@ -190,7 +192,6 @@ function Cylinder3D<T>({
         }
       `}</style>
 
-      {/* Tambor 3D */}
       <Box
         style={{
           width: '100%',
@@ -257,6 +258,7 @@ export function DrawPage() {
 
   const [drawingStage, setDrawingStage] = useState<'team' | 'group'>('team');
   const [spinning, setSpinning] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [targetIndex, setTargetIndex] = useState<number | null>(null);
   const [drawnTeam, setDrawnTeam] = useState<RaffleTeam | null>(null);
   const [drawnResult, setDrawnResult] = useState<DrawResult | null>(null);
@@ -341,10 +343,13 @@ export function DrawPage() {
   // ── 1. Sorteo de Equipo ──
   const handleStartSpin = () => {
     setSpinning(true);
+    setIsProcessing(true);
     setTargetIndex(null);
   };
 
   const handleDrawTeam = async () => {
+    if (spinning && targetIndex !== null) return;
+    handleStartSpin();
     try {
       const res = await drawApi.drawTeam(raffle!.id);
       const idx = remainingTeams.findIndex((t) => t.id === res.team.id);
@@ -352,6 +357,7 @@ export function DrawPage() {
       setTargetIndex(idx >= 0 ? idx : 0);
     } catch (err: any) {
       setSpinning(false);
+      setIsProcessing(false);
       notifications.show({
         message: err?.response?.data?.message || 'Error al sortear equipo',
         color: 'red',
@@ -359,10 +365,11 @@ export function DrawPage() {
     }
   };
 
-  const handleTeamLockedIn = () => {
+  const handleTeamLockedIn = useCallback(() => {
     setSpinning(false);
+    setIsProcessing(false);
     openTeamModal();
-  };
+  }, [openTeamModal]);
 
   // ── 2. Sorteo de Grupo ──
   const handlePrepareGroupDraw = () => {
@@ -372,6 +379,7 @@ export function DrawPage() {
   };
 
   const handleDrawGroup = async () => {
+    if (isProcessing) return;
     handleStartSpin();
     try {
       const res = await drawApi.drawGroup(raffle!.id);
@@ -380,6 +388,7 @@ export function DrawPage() {
       setTargetIndex(idx >= 0 ? idx : 0);
     } catch (err: any) {
       setSpinning(false);
+      setIsProcessing(false);
       notifications.show({
         message: err?.response?.data?.message || 'Error al sortear grupo',
         color: 'red',
@@ -387,13 +396,15 @@ export function DrawPage() {
     }
   };
 
-  const handleGroupLockedIn = async () => {
+  const handleGroupLockedIn = useCallback(async () => {
     setSpinning(false);
-    const newState = await drawApi.getState(raffle!.id);
+    setIsProcessing(false);
+    if (!raffle) return;
+    const newState = await drawApi.getState(raffle.id);
     setFullState(newState);
-    notifyPublicUpdate(); // Sincroniza la vista pública
+    notifyPublicUpdate();
     openResultModal();
-  };
+  }, [raffle, openResultModal]);
 
   const handleNextTeamDraw = () => {
     closeResultModal();
@@ -418,6 +429,7 @@ export function DrawPage() {
       setDrawnResult(null);
       setTargetIndex(null);
       setSpinning(false);
+      setIsProcessing(false);
       setDrawingStage('team');
       notifyPublicUpdate();
       closeUndo();
@@ -568,14 +580,14 @@ export function DrawPage() {
                     onLockedIn={handleTeamLockedIn}
                     renderItem={(team) => (
                       <Group justify="center" gap="sm" wrap="nowrap">
-                        <Avatar
-                          src={getImageUrl(team.imagePath)}
-                          size={28}
-                          radius="xl"
-                          styles={{ image: { objectFit: 'contain', padding: '1px' } }}
-                        >
-                          <IconShield size={14} />
-                        </Avatar>
+                        {team.imagePath && (
+                          <Image
+                            src={getImageUrl(team.imagePath)}
+                            h={24}
+                            w={24}
+                            fit="contain"
+                          />
+                        )}
                         <Text fw={800} size="md" style={{ whiteSpace: 'nowrap' }}>
                           {team.abbreviation}
                         </Text>
@@ -602,10 +614,10 @@ export function DrawPage() {
                       color="orange"
                       radius="md"
                       fullWidth
+                      disabled={isProcessing}
                       leftSection={<IconPlayerPlay size={20} />}
                       onClick={() => {
                         if (drawingStage === 'team') {
-                          handleStartSpin();
                           void handleDrawTeam();
                         } else {
                           void handleDrawGroup();
@@ -626,6 +638,7 @@ export function DrawPage() {
                     variant="subtle"
                     color="red"
                     size="xs"
+                    disabled={isProcessing}
                     leftSection={<IconArrowBackUp size={14} />}
                     onClick={openUndo}
                   >
@@ -638,7 +651,7 @@ export function DrawPage() {
         </Stack>
       </Box>
 
-      {/* MODAL 1: Equipo Sorteado */}
+      {/* MODAL 1: Equipo Sorteado (Sin recorte circular de logo) */}
       <Modal
         opened={teamModalOpened}
         onClose={() => {}}
@@ -651,14 +664,21 @@ export function DrawPage() {
           <Text size="sm" c="dimmed" tt="uppercase" fw={700} style={{ letterSpacing: '0.05em' }}>
             ¡Equipo Sorteado!
           </Text>
-          <Avatar
-            src={getImageUrl(drawnTeam?.imagePath)}
-            size={90}
-            radius="xl"
-            styles={{ image: { objectFit: 'contain', padding: '2px' } }}
-          >
-            <IconShield size={40} />
-          </Avatar>
+
+          {drawnTeam?.imagePath ? (
+            <Image
+              src={getImageUrl(drawnTeam.imagePath)}
+              h={90}
+              w={90}
+              fit="contain"
+              mx="auto"
+            />
+          ) : (
+            <Box p="md" style={{ borderRadius: '50%', background: 'var(--mantine-color-orange-light)' }}>
+              <IconShield size={48} color="var(--mantine-color-orange-6)" />
+            </Box>
+          )}
+
           <Box ta="center">
             <Title order={2}>{drawnTeam?.name}</Title>
             <Badge color="orange" size="lg" variant="light" mt={4}>
@@ -678,9 +698,9 @@ export function DrawPage() {
         </Stack>
       </Modal>
 
-      {/* MODAL 2: Tabla del Grupo */}
+      {/* MODAL 2: Tabla e Información del Grupo */}
       <Modal
-        opened={resultModalOpened}
+        opened={resultModalOpened && !!drawnResult}
         onClose={() => {}}
         withCloseButton={false}
         centered
@@ -693,12 +713,14 @@ export function DrawPage() {
           {/* Información de la Facultad Sorteada */}
           <Paper withBorder p="md" radius="md" w="100%" ta="center">
             <Group justify="center" gap="sm">
-              <Avatar
-                src={getImageUrl(drawnResult?.raffleTeam?.imagePath || drawnTeam?.imagePath)}
-                size={36}
-                radius="xl"
-                styles={{ image: { objectFit: 'contain', padding: '1px' } }}
-              />
+              {(drawnResult?.raffleTeam?.imagePath || drawnTeam?.imagePath) && (
+                <Image
+                  src={getImageUrl(drawnResult?.raffleTeam?.imagePath || drawnTeam?.imagePath)}
+                  h={36}
+                  w={36}
+                  fit="contain"
+                />
+              )}
               <Box ta="left">
                 <Text fw={800} size="md">
                   {drawnResult?.raffleTeam?.name || drawnTeam?.name}
@@ -759,12 +781,14 @@ export function DrawPage() {
                         <Table.Td>
                           {res ? (
                             <Group gap="xs" wrap="nowrap">
-                              <Avatar
-                                src={getImageUrl(res.raffleTeam?.imagePath)}
-                                size={20}
-                                radius="xl"
-                                styles={{ image: { objectFit: 'contain' } }}
-                              />
+                              {res.raffleTeam?.imagePath && (
+                                <Image
+                                  src={getImageUrl(res.raffleTeam.imagePath)}
+                                  h={20}
+                                  w={20}
+                                  fit="contain"
+                                />
+                              )}
                               <Text size="sm" fw={600} style={{ whiteSpace: 'nowrap' }}>
                                 {res.raffleTeam?.name} ({res.raffleTeam?.abbreviation})
                               </Text>

@@ -203,52 +203,55 @@ export function PublicRafflePage() {
               </Paper>
             ) : (
               <Grid spacing="md">
-                {currentSection.groups.map(group => (
-                  <Grid.Col key={group.id} span={{ base: 12, sm: 6, md: 4 }}>
-                    <Card withBorder radius="md" p="md">
-                      <Group justify="space-between" mb="xs">
-                        <Text fw={700}>{group.name}</Text>
-                        <Badge variant="light" color="orange" size="sm">
-                          {group.results.length}/{group.capacity}
-                        </Badge>
-                      </Group>
+                {currentSection.groups.map(group => {
+                  const isFull = group.results.length >= group.capacity;
+                  return (
+                    <Grid.Col key={group.id} span={{ base: 12, sm: 6, md: 4 }}>
+                      <Card withBorder radius="md" p="md">
+                        <Group justify="space-between" mb="xs">
+                          <Text fw={700}>{group.name}</Text>
+                          <Badge variant="light" color={isFull ? 'green' : 'orange'} size="sm">
+                            {group.results.length}/{group.capacity}
+                          </Badge>
+                        </Group>
 
-                      <Table striped withRowBorders={false} verticalSpacing={6}>
-                        <Table.Thead>
-                          <Table.Tr>
-                            <Table.Th w={30}>#</Table.Th>
-                            <Table.Th>Equipo</Table.Th>
-                          </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                          {group.results.map(r => (
-                            <Table.Tr key={r.position}>
-                              <Table.Td>
-                                <Text size="xs" c="dimmed" fw={700}>{r.position}</Text>
-                              </Table.Td>
-                              <Table.Td>
-                                <Group gap="xs" wrap="nowrap">
-                                  {r.raffleTeam.imagePath && (
-                                    <Image src={getImageUrl(r.raffleTeam.imagePath)} w={20} h={20} fit="contain" />
-                                  )}
-                                  <Text size="sm" fw={600} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {r.raffleTeam.abbreviation}
-                                  </Text>
-                                </Group>
-                              </Table.Td>
+                        <Table striped withRowBorders={false} verticalSpacing={6}>
+                          <Table.Thead>
+                            <Table.Tr>
+                              <Table.Th w={30}>#</Table.Th>
+                              <Table.Th>Equipo</Table.Th>
                             </Table.Tr>
-                          ))}
-                          {Array.from({ length: Math.max(0, group.capacity - group.results.length) }).map((_, i) => (
-                            <Table.Tr key={`empty-${i}`}>
-                              <Table.Td><Text size="xs" c="dimmed">{group.results.length + i + 1}</Text></Table.Td>
-                              <Table.Td><Text size="sm" c="dimmed" fs="italic">—</Text></Table.Td>
-                            </Table.Tr>
-                          ))}
-                        </Table.Tbody>
-                      </Table>
-                    </Card>
-                  </Grid.Col>
-                ))}
+                          </Table.Thead>
+                          <Table.Tbody>
+                            {group.results.map(r => (
+                              <Table.Tr key={r.position}>
+                                <Table.Td>
+                                  <Text size="xs" c="dimmed" fw={700}>{r.position}</Text>
+                                </Table.Td>
+                                <Table.Td>
+                                  <Group gap="xs" wrap="nowrap">
+                                    {r.raffleTeam.imagePath && (
+                                      <Image src={getImageUrl(r.raffleTeam.imagePath)} w={20} h={20} fit="contain" />
+                                    )}
+                                    <Text size="sm" fw={600} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {r.raffleTeam.abbreviation}
+                                    </Text>
+                                  </Group>
+                                </Table.Td>
+                              </Table.Tr>
+                            ))}
+                            {Array.from({ length: Math.max(0, group.capacity - group.results.length) }).map((_, i) => (
+                              <Table.Tr key={`empty-${i}`}>
+                                <Table.Td><Text size="xs" c="dimmed">{group.results.length + i + 1}</Text></Table.Td>
+                                <Table.Td><Text size="sm" c="dimmed" fs="italic">—</Text></Table.Td>
+                              </Table.Tr>
+                            ))}
+                          </Table.Tbody>
+                        </Table>
+                      </Card>
+                    </Grid.Col>
+                  );
+                })}
               </Grid>
             )}
           </Stack>
