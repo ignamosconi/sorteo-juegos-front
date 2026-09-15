@@ -80,6 +80,15 @@ export interface GlobalTeam {
   updatedAt: string;
 }
 
+// ── Default Sports ──────────────────────────────────────────────────────────────
+
+export interface DefaultSport {
+  id: string;
+  name: string;
+  order: number;
+  createdAt: string;
+}
+
 // ── Raffles ───────────────────────────────────────────────────────────────────
 
 export type RaffleStatus = 'pending' | 'configured' | 'in_progress' | 'finished';
@@ -121,7 +130,6 @@ export interface Sport {
   id: string;
   raffleId: string;
   name: string;
-  abbreviation: string;
   order: number;
   createdAt: string;
   updatedAt: string;

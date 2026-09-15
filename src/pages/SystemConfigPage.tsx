@@ -9,16 +9,17 @@ import { useDisclosure } from '@mantine/hooks';
 import {
   IconPlus, IconTrash, IconEdit, IconDeviceFloppy, IconShield,
   IconLayoutNavbar, IconWorld, IconTrophy, IconAlertTriangle,
-  IconRotate2, IconTool, IconUser, IconUsers,
+  IconRotate2, IconTool, IconUser, IconUsers, IconRun,
 } from '@tabler/icons-react';
 import { systemConfigApi } from '@/api/systemConfigApi';
 import { defaultCategoryApi } from '@/api/defaultCategoryApi';
+import { defaultSportApi } from '@/api/defaultSportApi';
 import { globalTeamApi } from '@/api/globalTeamApi';
 import { fileUploadApi } from '@/api/fileUploadApi';
 import { notifications } from '@mantine/notifications';
 import { ImageUploadInput } from '@/components/ui/ImageUploadInput';
 import { getImageUrl } from '@/utils/imageUrl';
-import type { SystemConfig, DefaultCategory, GlobalTeam } from '@/types/api.types';
+import type { SystemConfig, DefaultCategory, DefaultSport, GlobalTeam } from '@/types/api.types';
 
 const ACCORDION_STORAGE_KEY = 'system-config-accordion-state';
 
@@ -48,8 +49,11 @@ export function SystemConfigPage() {
   const { navigator } = useContext(NavigationContext);
   const [pendingTx, setPendingTx] = useState<(() => void) | null>(null);
 
-  // Tabs Ref
+  // Tabs Ref & Focus Refs
   const tabsListRef = useRef<HTMLDivElement>(null);
+  const addSportBtnRef = useRef<HTMLButtonElement>(null);
+  const addCatBtnRef = useRef<HTMLButtonElement>(null);
+  const addTeamBtnRef = useRef<HTMLButtonElement>(null);
 
   // Categories
   const [categories, setCategories] = useState<DefaultCategory[]>([]);
@@ -59,6 +63,15 @@ export function SystemConfigPage() {
   const [deleteCat, setDeleteCat] = useState<DefaultCategory | null>(null);
   const [catOpened, { open: openCat, close: closeCat }] = useDisclosure(false);
   const [deleteCatOpened, { open: openDeleteCat, close: closeDeleteCat }] = useDisclosure(false);
+
+  // Default Sports
+  const [sports, setSports] = useState<DefaultSport[]>([]);
+  const [sportForm, setSportForm] = useState({ name: '' });
+  const [sportError, setSportError] = useState<string | undefined>(undefined);
+  const [editSport, setEditSport] = useState<DefaultSport | null>(null);
+  const [deleteSport, setDeleteSport] = useState<DefaultSport | null>(null);
+  const [sportOpened, { open: openSport, close: closeSport }] = useDisclosure(false);
+  const [deleteSportOpened, { open: openDeleteSport, close: closeDeleteSport }] = useDisclosure(false);
 
   // Global teams
   const [teams, setTeams] = useState<GlobalTeam[]>([]);
@@ -73,12 +86,14 @@ export function SystemConfigPage() {
     Promise.all([
       systemConfigApi.get(),
       defaultCategoryApi.getAll(),
+      defaultSportApi.getAll(),
       globalTeamApi.getAll(),
-    ]).then(([cfg, cats, ts]) => {
+    ]).then(([cfg, cats, sps, ts]) => {
       setConfig(cfg);
       setInitialConfigForm(cfg);
       setConfigForm(cfg);
       setCategories(cats);
+      setSports(sps);
       setTeams(ts);
     }).finally(() => setLoading(false));
   }, []);
@@ -238,27 +253,42 @@ export function SystemConfigPage() {
     setPendingTx(null);
   };
 
-  // Handlers para Categorías y Equipos
+  // Handlers Categorías
   const handleSaveCat = async () => {
-    if (!catForm.name.trim()) {
+    const trimName = catForm.name.trim();
+    if (!trimName) {
       setCatError('El nombre de la categoría es obligatorio');
       return;
     }
+
+    const exists = categories.some(
+      c => c.id !== editCat?.id && c.name.trim().toLowerCase() === trimName.toLowerCase()
+    );
+    if (exists) {
+      setCatError('Esta categoría ya existe en el sistema');
+      return;
+    }
+
     setCatError(undefined);
     setSaving(true);
     try {
       if (editCat) {
-        const updated = await defaultCategoryApi.update(editCat.id, { name: catForm.name });
+        const updated = await defaultCategoryApi.update(editCat.id, { name: trimName });
         setCategories(prev => prev.map(c => c.id === editCat.id ? updated : c));
       } else {
-        const created = await defaultCategoryApi.create({ name: catForm.name, order: categories.length });
+        const created = await defaultCategoryApi.create({ name: trimName, order: categories.length });
         setCategories(prev => [...prev, created]);
       }
       closeCat();
       setCatForm({ name: '' });
       setEditCat(null);
-    } catch {
-      notifications.show({ message: 'Error al guardar categoría', color: 'red' });
+      setTimeout(() => addCatBtnRef.current?.focus(), 100);
+    } catch (err: any) {
+      if (err?.response?.status === 409 || err?.response?.data?.message?.includes('duplicate')) {
+        setCatError('Esta categoría ya existe en el sistema');
+      } else {
+        notifications.show({ message: 'Error al guardar categoría', color: 'red' });
+      }
     } finally { setSaving(false); }
   };
 
@@ -274,6 +304,58 @@ export function SystemConfigPage() {
     } finally { setSaving(false); }
   };
 
+  // Handlers Deportes por Defecto
+  const handleSaveSport = async () => {
+    const trimName = sportForm.name.trim();
+    if (!trimName) {
+      setSportError('El nombre del deporte es obligatorio');
+      return;
+    }
+
+    const exists = sports.some(
+      s => s.id !== editSport?.id && s.name.trim().toLowerCase() === trimName.toLowerCase()
+    );
+    if (exists) {
+      setSportError('Este deporte ya existe en el sistema');
+      return;
+    }
+
+    setSportError(undefined);
+    setSaving(true);
+    try {
+      if (editSport) {
+        const updated = await defaultSportApi.update(editSport.id, { name: trimName });
+        setSports(prev => prev.map(s => s.id === editSport.id ? updated : s));
+      } else {
+        const created = await defaultSportApi.create({ name: trimName, order: sports.length });
+        setSports(prev => [...prev, created]);
+      }
+      closeSport();
+      setSportForm({ name: '' });
+      setEditSport(null);
+      setTimeout(() => addSportBtnRef.current?.focus(), 100);
+    } catch (err: any) {
+      if (err?.response?.status === 409 || err?.response?.data?.message?.includes('duplicate')) {
+        setSportError('Este deporte ya existe en el sistema');
+      } else {
+        notifications.show({ message: 'Error al guardar deporte', color: 'red' });
+      }
+    } finally { setSaving(false); }
+  };
+
+  const handleDeleteSport = async () => {
+    if (!deleteSport) return;
+    setSaving(true);
+    try {
+      await defaultSportApi.delete(deleteSport.id);
+      setSports(prev => prev.filter(s => s.id !== deleteSport.id));
+      closeDeleteSport();
+    } catch {
+      notifications.show({ message: 'Error al eliminar', color: 'red' });
+    } finally { setSaving(false); }
+  };
+
+  // Handlers Equipos del Sistema
   const handleSaveTeam = async () => {
     const errors: { name?: string; abbreviation?: string } = {};
     if (!teamForm.name.trim()) errors.name = 'El nombre es obligatorio';
@@ -297,6 +379,7 @@ export function SystemConfigPage() {
       closeTeam();
       setTeamForm({ name: '', abbreviation: '', imagePath: '' });
       setEditTeam(null);
+      setTimeout(() => addTeamBtnRef.current?.focus(), 100);
     } catch {
       notifications.show({ message: 'Error al guardar equipo', color: 'red' });
     } finally { setSaving(false); }
@@ -352,6 +435,14 @@ export function SystemConfigPage() {
             General
           </Tabs.Tab>
           <Tabs.Tab
+            value="sports"
+            data-value="sports"
+            leftSection={<IconRun size={14} />}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            Deportes por defecto
+          </Tabs.Tab>
+          <Tabs.Tab
             value="categories"
             data-value="categories"
             leftSection={<IconUser size={14} />}
@@ -379,7 +470,6 @@ export function SystemConfigPage() {
               value={accordionState}
               onChange={handleAccordionChange}
             >
-              {/* Cajón 1: Panel de Administración */}
               <Accordion.Item value="admin-panel">
                 <Accordion.Control icon={<IconLayoutNavbar size={18} />}>
                   <Text fw={600}>Apariencia del panel de administración</Text>
@@ -420,7 +510,6 @@ export function SystemConfigPage() {
                 </Accordion.Panel>
               </Accordion.Item>
 
-              {/* Cajón 2: Vista Pública */}
               <Accordion.Item value="public-view">
                 <Accordion.Control icon={<IconWorld size={18} />}>
                   <Text fw={600}>Vista pública del sorteo</Text>
@@ -459,7 +548,6 @@ export function SystemConfigPage() {
                 </Accordion.Panel>
               </Accordion.Item>
 
-              {/* Cajón 3: Sorteos */}
               <Accordion.Item value="raffles">
                 <Accordion.Control icon={<IconTrophy size={18} />}>
                   <Text fw={600}>Sorteos</Text>
@@ -493,7 +581,6 @@ export function SystemConfigPage() {
               </Accordion.Item>
             </Accordion>
 
-            {/* Barra de acciones inferior */}
             <Group justify="space-between" align="center" mt="md">
               <Box>
                 {isDirty && (
@@ -524,6 +611,53 @@ export function SystemConfigPage() {
           </Stack>
         </Tabs.Panel>
 
+        {/* ── Deportes por defecto ── */}
+        <Tabs.Panel value="sports">
+          <Stack gap="md">
+            <Paper withBorder radius="md" p="md">
+              <Group justify="space-between">
+                <Box>
+                  <Text fw={500}>Deportes por defecto</Text>
+                  <Text size="sm" c="dimmed">Estos deportes se ofrecen como atajos al configurar los deportes de un sorteo.</Text>
+                </Box>
+                <Button
+                  ref={addSportBtnRef}
+                  size="sm"
+                  leftSection={<IconPlus size={14} />}
+                  color="orange"
+                  onClick={() => { setEditSport(null); setSportForm({ name: '' }); setSportError(undefined); openSport(); }}
+                >
+                  Agregar
+                </Button>
+              </Group>
+            </Paper>
+
+            {sports.length === 0 ? (
+              <Text c="dimmed" size="sm">No hay deportes definidos en el sistema.</Text>
+            ) : (
+              <Stack gap="xs">
+                {sports.map(sport => (
+                  <Card key={sport.id} withBorder radius="md" p="sm">
+                    <Group justify="space-between">
+                      <Text size="sm">{sport.name}</Text>
+                      <Group gap={4}>
+                        <ActionIcon size="sm" variant="subtle" color="orange"
+                          onClick={() => { setEditSport(sport); setSportForm({ name: sport.name }); setSportError(undefined); openSport(); }}>
+                          <IconEdit size={14} />
+                        </ActionIcon>
+                        <ActionIcon size="sm" variant="subtle" color="red"
+                          onClick={() => { setDeleteSport(sport); openDeleteSport(); }}>
+                          <IconTrash size={14} />
+                        </ActionIcon>
+                      </Group>
+                    </Group>
+                  </Card>
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        </Tabs.Panel>
+
         {/* ── Categorías por defecto ── */}
         <Tabs.Panel value="categories">
           <Stack gap="md">
@@ -534,6 +668,7 @@ export function SystemConfigPage() {
                   <Text size="sm" c="dimmed">Estas categorías se ofrecen como atajos al configurar deportes en un sorteo.</Text>
                 </Box>
                 <Button
+                  ref={addCatBtnRef}
                   size="sm"
                   leftSection={<IconPlus size={14} />}
                   color="orange"
@@ -580,6 +715,7 @@ export function SystemConfigPage() {
                   <Text size="sm" c="dimmed">Pool de equipos reutilizables que podés importar en cualquier sorteo.</Text>
                 </Box>
                 <Button
+                  ref={addTeamBtnRef}
                   size="sm"
                   leftSection={<IconPlus size={14} />}
                   color="orange"
@@ -625,7 +761,7 @@ export function SystemConfigPage() {
         </Tabs.Panel>
       </Tabs>
 
-      {/* Modal Descartar Cambios (Shake al intentar abandonar la página) */}
+      {/* Modal Descartar Cambios */}
       <Modal opened={discardModalOpened} onClose={handleModalKeep} title="Cambios sin guardar" centered>
         <Box className={triggerShake ? 'shake-box' : ''}>
           <Stack gap="md">
@@ -641,11 +777,54 @@ export function SystemConfigPage() {
               </Button>
             </Group>
           </Stack>
-        </Box> 
+        </Box>
+      </Modal>
+
+      {/* Default Sport Modals */}
+      <Modal
+        opened={sportOpened}
+        onClose={() => { closeSport(); setTimeout(() => addSportBtnRef.current?.focus(), 100); }}
+        title={editSport ? 'Editar deporte' : 'Nuevo deporte'}
+        centered
+      >
+        <Stack>
+          <TextInput
+            label="Nombre del deporte"
+            value={sportForm.name}
+            error={sportError}
+            placeholder="Ej: Fútbol"
+            onChange={e => {
+              const val = e.target.value;
+              setSportForm({ name: val });
+              if (val.trim()) setSportError(undefined);
+            }}
+            onKeyDown={e => e.key === 'Enter' && void handleSaveSport()}
+            autoFocus
+          />
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={() => { closeSport(); setTimeout(() => addSportBtnRef.current?.focus(), 100); }}>Cancelar</Button>
+            <Button color="orange" loading={saving} onClick={() => void handleSaveSport()}>Guardar</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal opened={deleteSportOpened} onClose={closeDeleteSport} title="Eliminar deporte" centered>
+        <Stack>
+          <Text>¿Eliminar el deporte <strong>{deleteSport?.name}</strong> del sistema?</Text>
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={closeDeleteSport}>Cancelar</Button>
+            <Button color="red" loading={saving} onClick={() => void handleDeleteSport()}>Eliminar</Button>
+          </Group>
+        </Stack>
       </Modal>
 
       {/* Category Modals */}
-      <Modal opened={catOpened} onClose={closeCat} title={editCat ? 'Editar categoría' : 'Nueva categoría'} centered>
+      <Modal
+        opened={catOpened}
+        onClose={() => { closeCat(); setTimeout(() => addCatBtnRef.current?.focus(), 100); }}
+        title={editCat ? 'Editar categoría' : 'Nueva categoría'}
+        centered
+      >
         <Stack>
           <TextInput
             label="Nombre"
@@ -660,7 +839,7 @@ export function SystemConfigPage() {
             autoFocus
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeCat}>Cancelar</Button>
+            <Button variant="subtle" onClick={() => { closeCat(); setTimeout(() => addCatBtnRef.current?.focus(), 100); }}>Cancelar</Button>
             <Button color="orange" loading={saving} onClick={() => void handleSaveCat()}>Guardar</Button>
           </Group>
         </Stack>
@@ -677,7 +856,12 @@ export function SystemConfigPage() {
       </Modal>
 
       {/* Team Modals */}
-      <Modal opened={teamOpened} onClose={closeTeam} title={editTeam ? 'Editar equipo' : 'Nuevo equipo'} centered>
+      <Modal
+        opened={teamOpened}
+        onClose={() => { closeTeam(); setTimeout(() => addTeamBtnRef.current?.focus(), 100); }}
+        title={editTeam ? 'Editar equipo' : 'Nuevo equipo'}
+        centered
+      >
         <Stack>
           <TextInput
             label="Nombre completo"
@@ -710,7 +894,7 @@ export function SystemConfigPage() {
             onChange={path => setTeamForm(f => ({ ...f, imagePath: path || '' }))}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeTeam}>Cancelar</Button>
+            <Button variant="subtle" onClick={() => { closeTeam(); setTimeout(() => addTeamBtnRef.current?.focus(), 100); }}>Cancelar</Button>
             <Button color="orange" loading={saving} onClick={() => void handleSaveTeam()}>Guardar</Button>
           </Group>
         </Stack>

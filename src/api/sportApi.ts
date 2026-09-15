@@ -12,9 +12,9 @@ export const sportApi = {
   // Sports
   getByRaffle: (raffleId: string) =>
     apiClient.get<Sport[]>(`/raffles/${raffleId}/sports`).then(r => r.data),
-  createSport: (raffleId: string, data: { name: string; abbreviation: string; order?: number }) =>
+  createSport: (raffleId: string, data: { name: string; order?: number }) =>
     apiClient.post<Sport>(`/raffles/${raffleId}/sports`, data).then(r => r.data),
-  updateSport: (id: string, data: Partial<{ name: string; abbreviation: string; order: number }>) =>
+  updateSport: (id: string, data: Partial<{ name: string; order: number }>) =>
     apiClient.patch<Sport>(`/sports/${id}`, data).then(r => r.data),
   deleteSport: (id: string) => apiClient.delete(`/sports/${id}`),
 
