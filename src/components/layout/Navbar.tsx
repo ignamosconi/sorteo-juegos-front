@@ -13,11 +13,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import logoUtn from '@/assets/logo-utn.png';
 import { ENV } from '@/config/env';
+import { getImageUrl } from '@/utils/imageUrl';
+import type { SystemConfig } from '@/types/api.types';
 
 const NAVBAR_EXPANDED = 220;
 const NAVBAR_COLLAPSED = 60;
 
-// ── DragHandle ────────────────────────────────────────────────────────────────
 function DragHandle({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
   const startX = useRef(0);
   const didDrag = useRef(false);
@@ -42,7 +43,6 @@ function DragHandle({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => voi
   );
 }
 
-// ── NavItem ───────────────────────────────────────────────────────────────────
 function NavItem({ to, label, icon: Icon, isOpen }: { to: string; label: string; icon: React.ElementType; isOpen: boolean }) {
   const location = useLocation();
   const isActive = location.pathname === to || (
@@ -69,7 +69,6 @@ function NavItem({ to, label, icon: Icon, isOpen }: { to: string; label: string;
   return !isOpen ? <Tooltip label={label} position="right" withArrow>{button}</Tooltip> : button;
 }
 
-// ── NavSection ────────────────────────────────────────────────────────────────
 interface NavSectionProps {
   label: string;
   icon: React.ElementType;
@@ -133,7 +132,6 @@ function NavSection({ label, icon: Icon, isOpen, onToggleNavbar, children, defau
         </Group>
       </UnstyledButton>
 
-      {/* Despliegue fluido sin librerías JS externas */}
       <Box
         style={{
           display: 'grid',
@@ -151,8 +149,19 @@ function NavSection({ label, icon: Icon, isOpen, onToggleNavbar, children, defau
   );
 }
 
-// ── Navbar ────────────────────────────────────────────────────────────────────
-export function Navbar({ isOpen, onToggle, onClose, isMobile }: { isOpen: boolean; onToggle: () => void; onClose: () => void; isMobile: boolean }) {
+export function Navbar({
+  isOpen,
+  onToggle,
+  onClose,
+  isMobile,
+  systemConfig,
+}: {
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  isMobile: boolean;
+  systemConfig?: SystemConfig | null;
+}) {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const [logoutLoading, setLogoutLoading] = useState(false);
@@ -163,6 +172,8 @@ export function Navbar({ isOpen, onToggle, onClose, isMobile }: { isOpen: boolea
   };
 
   const visualWidth = isOpen ? NAVBAR_EXPANDED : NAVBAR_COLLAPSED;
+  const navbarTitle = systemConfig?.navbarTitle?.trim() || ENV.APP_NAME;
+  const logoSrc = systemConfig?.navbarImagePath ? getImageUrl(systemConfig.navbarImagePath) : logoUtn;
 
   return (
     <>
@@ -186,10 +197,10 @@ export function Navbar({ isOpen, onToggle, onClose, isMobile }: { isOpen: boolea
           <Box>
             <NavLink to="/dashboard" style={{ textDecoration: 'none', color: 'inherit' }}>
               <Group mb="md" gap="xs" justify={isOpen ? 'flex-start' : 'center'} wrap="nowrap" style={{ cursor: 'pointer' }}>
-                <Image src={logoUtn} w={32} h={32} fit="contain" style={{ flexShrink: 0 }} />
+                <Image src={logoSrc} w={32} h={32} fit="contain" style={{ flexShrink: 0 }} />
                 {isOpen && (
                   <Box style={{ overflow: 'hidden' }}>
-                    <Text fw={600} size="sm" lh={1.2} style={{ whiteSpace: 'nowrap' }}>{ENV.APP_NAME}</Text>
+                    <Text fw={600} size="sm" lh={1.2} style={{ whiteSpace: 'nowrap' }}>{navbarTitle}</Text>
                     <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>Panel de administración</Text>
                   </Box>
                 )}

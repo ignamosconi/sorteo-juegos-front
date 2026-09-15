@@ -298,7 +298,7 @@ export function DrawPage() {
                 <Card key={s.id} withBorder radius="md" p="lg" ta="center"
                   style={{ cursor: 'pointer' }}
                   onClick={() => void handleSelectSport(s)}>
-                  <Text fw={700} size="xl">{s.abbreviation}</Text>
+                  <Text fw={700} size="xl">{s.name.slice(0, 3).toUpperCase()}</Text>
                   <Text size="xs" c="dimmed">{s.name}</Text>
                 </Card>
               ))}

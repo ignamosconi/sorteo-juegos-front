@@ -31,7 +31,6 @@ export function SystemConfigPage() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Estado del acordeón guardado en localStorage
   const [accordionState, setAccordionState] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(ACCORDION_STORAGE_KEY);
@@ -41,21 +40,17 @@ export function SystemConfigPage() {
     }
   });
 
-  // Modal para bloquear navegación no guardada
   const [discardModalOpened, { open: openDiscardModal, close: closeDiscardModal }] = useDisclosure(false);
   const [triggerShake, setTriggerShake] = useState(false);
 
-  // Interceptor de navegación compatible con <BrowserRouter>
   const { navigator } = useContext(NavigationContext);
   const [pendingTx, setPendingTx] = useState<(() => void) | null>(null);
 
-  // Tabs Ref & Focus Refs
   const tabsListRef = useRef<HTMLDivElement>(null);
   const addSportBtnRef = useRef<HTMLButtonElement>(null);
   const addCatBtnRef = useRef<HTMLButtonElement>(null);
   const addTeamBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Categories
   const [categories, setCategories] = useState<DefaultCategory[]>([]);
   const [catForm, setCatForm] = useState({ name: '' });
   const [catError, setCatError] = useState<string | undefined>(undefined);
@@ -64,7 +59,6 @@ export function SystemConfigPage() {
   const [catOpened, { open: openCat, close: closeCat }] = useDisclosure(false);
   const [deleteCatOpened, { open: openDeleteCat, close: closeDeleteCat }] = useDisclosure(false);
 
-  // Default Sports
   const [sports, setSports] = useState<DefaultSport[]>([]);
   const [sportForm, setSportForm] = useState({ name: '' });
   const [sportError, setSportError] = useState<string | undefined>(undefined);
@@ -73,7 +67,6 @@ export function SystemConfigPage() {
   const [sportOpened, { open: openSport, close: closeSport }] = useDisclosure(false);
   const [deleteSportOpened, { open: openDeleteSport, close: closeDeleteSport }] = useDisclosure(false);
 
-  // Global teams
   const [teams, setTeams] = useState<GlobalTeam[]>([]);
   const [teamForm, setTeamForm] = useState({ name: '', abbreviation: '', imagePath: '' });
   const [teamErrors, setTeamErrors] = useState<{ name?: string; abbreviation?: string }>({});
@@ -98,7 +91,6 @@ export function SystemConfigPage() {
     }).finally(() => setLoading(false));
   }, []);
 
-  // Validación de campos obligatorios
   const formErrors = useMemo(() => {
     const errors: {
       navbarTitle?: string;
@@ -107,15 +99,33 @@ export function SystemConfigPage() {
       defaultGroupPrefix?: string;
     } = {};
 
-    if (configForm.navbarTitle !== undefined && !configForm.navbarTitle.trim()) {
-      errors.navbarTitle = 'El título del navbar no puede estar vacío.';
+    if (configForm.navbarTitle !== undefined) {
+      const trimmed = configForm.navbarTitle.trim();
+      if (!trimmed) {
+        errors.navbarTitle = 'El título del navbar no puede estar vacío.';
+      } else if (trimmed.length > 20) {
+        errors.navbarTitle = 'El título no puede superar los 20 caracteres.';
+      }
     }
-    if (configForm.adminTabName !== undefined && !configForm.adminTabName.trim()) {
-      errors.adminTabName = 'El nombre de la pestaña no puede estar vacío.';
+
+    if (configForm.adminTabName !== undefined) {
+      const trimmed = configForm.adminTabName.trim();
+      if (!trimmed) {
+        errors.adminTabName = 'El nombre de la pestaña no puede estar vacío.';
+      } else if (trimmed.length > 25) {
+        errors.adminTabName = 'El nombre no puede superar los 25 caracteres.';
+      }
     }
-    if (configForm.publicTabName !== undefined && !configForm.publicTabName.trim()) {
-      errors.publicTabName = 'El nombre de la pestaña pública no puede estar vacío.';
+
+    if (configForm.publicTabName !== undefined) {
+      const trimmed = configForm.publicTabName.trim();
+      if (!trimmed) {
+        errors.publicTabName = 'El nombre de la pestaña pública no puede estar vacío.';
+      } else if (trimmed.length > 25) {
+        errors.publicTabName = 'El nombre no puede superar los 25 caracteres.';
+      }
     }
+
     if (configForm.defaultGroupPrefix !== undefined && !configForm.defaultGroupPrefix.trim()) {
       errors.defaultGroupPrefix = 'El prefijo de grupo no puede estar vacío.';
     }
@@ -126,7 +136,6 @@ export function SystemConfigPage() {
   const hasFormErrors = Object.keys(formErrors).length > 0;
   const isDirty = JSON.stringify(configForm) !== JSON.stringify(initialConfigForm);
 
-  // Interceptar clics en el Navbar u otras rutas de la app cuando hay cambios sin guardar
   useEffect(() => {
     if (!isDirty) return;
 
@@ -153,13 +162,11 @@ export function SystemConfigPage() {
     };
   }, [navigator, isDirty, openDiscardModal]);
 
-  // Guardar estado del acordeón cuando cambia
   const handleAccordionChange = (state: string[]) => {
     setAccordionState(state);
     localStorage.setItem(ACCORDION_STORAGE_KEY, JSON.stringify(state));
   };
 
-  // Prevención de recarga o cierre de pestaña del navegador
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isDirty) {
@@ -171,7 +178,6 @@ export function SystemConfigPage() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
 
-  // Centrado de solapas con scroll suave
   const handleTabChange = (value: string | null) => {
     if (!value || !tabsListRef.current) return;
     const container = tabsListRef.current;
@@ -214,6 +220,8 @@ export function SystemConfigPage() {
       setInitialConfigForm(updated);
       setConfigForm(updated);
       setNewlyUploadedImages([]);
+
+      window.dispatchEvent(new CustomEvent('system-config-updated', { detail: updated }));
       notifications.show({ message: 'Configuración guardada correctamente', color: 'green' });
     } catch {
       notifications.show({ message: 'Error al guardar la configuración', color: 'red' });
@@ -253,7 +261,6 @@ export function SystemConfigPage() {
     setPendingTx(null);
   };
 
-  // Handlers Categorías
   const handleSaveCat = async () => {
     const trimName = catForm.name.trim();
     if (!trimName) {
@@ -304,7 +311,6 @@ export function SystemConfigPage() {
     } finally { setSaving(false); }
   };
 
-  // Handlers Deportes por Defecto
   const handleSaveSport = async () => {
     const trimName = sportForm.name.trim();
     if (!trimName) {
@@ -355,7 +361,6 @@ export function SystemConfigPage() {
     } finally { setSaving(false); }
   };
 
-  // Handlers Equipos del Sistema
   const handleSaveTeam = async () => {
     const errors: { name?: string; abbreviation?: string } = {};
     if (!teamForm.name.trim()) errors.name = 'El nombre es obligatorio';
@@ -478,8 +483,11 @@ export function SystemConfigPage() {
                   <Stack gap="md" pt="xs">
                     <TextInput
                       label="Título del navbar"
+                      description="Máximo 20 caracteres."
+                      placeholder="FRVM Sorteos"
                       value={configForm.navbarTitle ?? ''}
                       error={formErrors.navbarTitle}
+                      maxLength={20}
                       onChange={e => {
                         const val = e.target.value;
                         setConfigForm(f => ({ ...f, navbarTitle: val }));
@@ -493,8 +501,11 @@ export function SystemConfigPage() {
                     />
                     <TextInput
                       label="Nombre de la pestaña (panel admin)"
+                      description="Máximo 25 caracteres."
+                      placeholder="SSO FRVM - Admin"
                       value={configForm.adminTabName ?? ''}
                       error={formErrors.adminTabName}
+                      maxLength={25}
                       onChange={e => {
                         const val = e.target.value;
                         setConfigForm(f => ({ ...f, adminTabName: val }));
@@ -531,8 +542,11 @@ export function SystemConfigPage() {
                     />
                     <TextInput
                       label="Nombre de la pestaña (vista pública)"
+                      description="Máximo 25 caracteres."
+                      placeholder="Resultados Sorteo"
                       value={configForm.publicTabName ?? ''}
                       error={formErrors.publicTabName}
+                      maxLength={25}
                       onChange={e => {
                         const val = e.target.value;
                         setConfigForm(f => ({ ...f, publicTabName: val }));
@@ -880,7 +894,7 @@ export function SystemConfigPage() {
             label="Abreviación"
             value={teamForm.abbreviation}
             error={teamErrors.abbreviation}
-            placeholder='FRVM'
+            placeholder="FRVM"
             onChange={e => {
               const val = e.target.value;
               setTeamForm(f => ({ ...f, abbreviation: val }));
