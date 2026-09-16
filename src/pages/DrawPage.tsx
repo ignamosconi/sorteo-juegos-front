@@ -22,6 +22,8 @@ import type {
   SportCategoryGroup, DrawResult, PublicResultsResponse,
 } from '@/types/api.types';
 import { systemConfigApi } from '@/api/systemConfigApi';
+import { raffleApi } from '@/api/raffleApi';
+
 
 const notifyPublicUpdate = () => {
   window.dispatchEvent(new CustomEvent('raffle_draw_updated'));
@@ -452,6 +454,8 @@ export function DrawPage() {
     return allGroups.every((g) => g.results.length >= g.capacity);
   }, [publicData]);
 
+  const allSportsCompleted = sports.length > 0 && sports.every(s => isSportCompleted(s.id));
+
   const getCategoryTotalGroupsCount = useCallback((): number => {
     if (!selectedSport || !publicData) return 0;
     const sData = publicData.sports.find((s) => s.sport.id === selectedSport.id);
@@ -593,6 +597,9 @@ export function DrawPage() {
   const handleUndo = async () => {
     setUndoing(true);
     try {
+      if (selectedSport) {
+        await drawApi.selectContext(raffle!.id, selectedSport.id, selectedCategory?.id ?? undefined);
+      }
       const newState = await drawApi.undo(raffle!.id);
       setFullState(newState);
       setDrawnTeam(null);
@@ -734,6 +741,27 @@ export function DrawPage() {
                     );
                   })}
                 </SimpleGrid>
+
+                {allSportsCompleted && (
+                  <Button
+                    fullWidth
+                    color="green"
+                    size="md"
+                    leftSection={<IconCheck size={16} />}
+                    onClick={async () => {
+                      try {
+                        await raffleApi.update(raffle!.id, { status: 'finished' });
+                        notifications.show({ message: 'Sorteo finalizado con éxito', color: 'green' });
+                        navigate('/raffles');
+                      } catch {
+                        notifications.show({ message: 'Error al finalizar el sorteo', color: 'red' });
+                      }
+                    }}
+                  >
+                    Finalizar sorteo
+                  </Button>
+                )}
+
               </Stack>
             </Card>
           ) : phase === 'select_category' ? (
