@@ -1,29 +1,31 @@
 import {
   Box, Title, Text, Accordion, Code, Anchor, Group,
-  ThemeIcon, List, Card, Alert,
+  ThemeIcon, List, Card, Alert, Badge,
 } from '@mantine/core';
 import {
-  IconBook, IconServer, IconPlus, 
-  IconCode, IconShieldCheck 
+  IconBook, IconServer, IconPlus, IconCode,
+  IconShieldCheck, IconTrophy, IconPlayerPlay,
+  IconRefresh, IconSettings, IconLock,
 } from '@tabler/icons-react';
 import { ENV } from '@/config/env';
 
 export function FaqsPage() {
-  const ssoUrl = ENV.API_BASE_URL;
+  const apiBaseUrl = ENV.API_BASE_URL;
 
   return (
-    <Box>
-      <Title order={2} mb={4}>FAQs</Title>
+    <Box maw={900} mx="auto">
+      <Title order={2} mb={4}>Preguntas Frecuentes (FAQs)</Title>
       <Text c="dimmed" mb="xl" size="sm">
-        Guía rápida para admins del sistema.
+        Guía de uso y referencia rápida para administradores y operadores del sistema de sorteos.
       </Text>
 
+      {/* Tarjeta de Repositorios */}
       <Card withBorder radius="md" p="lg" mb="xl">
         <Group mb="sm">
           <ThemeIcon variant="light" color="orange" radius="md">
             <IconBook size={16} />
           </ThemeIcon>
-          <Text fw={600}>Repositorios</Text>
+          <Text fw={600}>Repositorios del Proyecto</Text>
         </Group>
         <List spacing="xs" size="sm">
           <List.Item>
@@ -53,35 +55,117 @@ export function FaqsPage() {
         </List>
       </Card>
 
-      {/* IconPlus, IconCode, IconShieldCheck, IconServer, IconHelp,  */}
-      <Box mb = "xl">
-        <Title order={3} mb={4}>Pregunta 1</Title>
+      {/* Sección 1: Sorteos y Configuración */}
+      <Box mb="xl">
+        <Title order={3} mb="md">1. Gestión de Sorteos y Torneos</Title>
         <Accordion variant="separated" radius="md">
-
-          {/* Pregunta N° 1.1 */}
-          <Accordion.Item value="nuevo-cliente">
+          
+          <Accordion.Item value="crear-sorteo">
             <Accordion.Control icon={<IconPlus size={16} />}>
-              Pregunta 1.1
+              ¿Cómo creo y configuro un nuevo sorteo?
             </Accordion.Control>
             <Accordion.Panel>
               <List size="sm" spacing="xs">
-                <List.Item>Andá a la sección <strong>sección</strong> en el menú lateral</List.Item>
-                <List.Item>Hacé click en <strong>botón</strong></List.Item>
+                <List.Item>Ingresá al menú <strong>Sorteos</strong> en la barra lateral.</List.Item>
+                <List.Item>Hacé click en el botón <strong>Nuevo Sorteo</strong> e ingresá el nombre del torneo o evento.</List.Item>
+                <List.Item>Agregá los <strong>Deportes</strong> y sus respectivas <strong>Categorías</strong> (si aplica).</List.Item>
+                <List.Item>Definí los <strong>Grupos</strong> y la capacidad máxima de vacantes para cada uno.</List.Item>
+                <List.Item>Importá los <strong>Equipos Participantes</strong> desde el catálogo de Equipos Globales.</List.Item>
                 <List.Item>
-                  Acordate que podés poner code con {' '}
-                  <Code>código 1</Code> o <Code>código 2</Code>
+                  Cambiá el estado del sorteo a <Badge color="orange" size="xs">En progreso</Badge> para habilitar la sala de sorteo en vivo.
                 </List.Item>
               </List>
             </Accordion.Panel>
           </Accordion.Item>
 
-          {/* Pregunta 1.2 */}
-          <Accordion.Item value="integrar-sso">
-            <Accordion.Control icon={<IconCode size={16} />}>
-              Pregunta 1.2
+          <Accordion.Item value="ejecutar-sorteo">
+            <Accordion.Control icon={<IconPlayerPlay size={16} />}>
+              ¿Cómo se ejecuta el sorteo en vivo con el Cilindro 3D?
             </Accordion.Control>
             <Accordion.Panel>
+              <Text size="sm" mb="xs">
+                La pantalla de sorteo en vivo está optimizada para proyectarse o transmitirse:
+              </Text>
+              <List size="sm" spacing="xs">
+                <List.Item>Ingresá al sorteo en progreso y hacé click en <strong>Sortear</strong> (o usá el link directo <Code>/sortear/:drawSlug</Code>).</List.Item>
+                <List.Item>Seleccioná el <strong>Deporte</strong> y la <strong>Categoría</strong> que querés sortear.</List.Item>
+                <List.Item>Presioná <strong>¡Sortear!</strong> para hacer girar el cilindro 3D y obtener un equipo aleatorio.</List.Item>
+                <List.Item>A continuación, girá el cilindro para asignarle un <strong>Grupo</strong> disponible.</List.Item>
+              </List>
+              <Alert color="orange" mt="sm" radius="md">
+                <Text size="xs" fw={500}>
+                  Si la categoría seleccionada tiene un solo grupo configurado, el sistema asignará el grupo de forma automática en un solo paso.
+                </Text>
+              </Alert>
+            </Accordion.Panel>
+          </Accordion.Item>
 
+          <Accordion.Item value="deshacer-sorteo">
+            <Accordion.Control icon={<IconRefresh size={16} />}>
+              ¿Qué pasa si me equivoco durante un sorteo en vivo?
+            </Accordion.Control>
+            <Accordion.Panel>
+              <Text size="sm" mb="xs">
+                El sistema cuenta con una función de <strong>Deshacer contextual</strong>:
+              </Text>
+              <List size="sm" spacing="xs">
+                <List.Item>Ubicado en la pantalla del deporte/categoría donde ocurrió la equivocación, presioná <strong>Deshacer último sorteo</strong>.</List.Item>
+                <List.Item>El sistema revertirá únicamente el último equipo sorteado en <strong>esa disciplina específica</strong>, sin afectar el progreso de los demás deportes ya sorteados.</List.Item>
+              </List>
+            </Accordion.Panel>
+          </Accordion.Item>
+
+        </Accordion>
+      </Box>
+
+      {/* Sección 2: Pantalla Pública y Transmisión */}
+      <Box mb="xl">
+        <Title order={3} mb="md">2. Pantalla Pública de Resultados</Title>
+        <Accordion variant="separated" radius="md">
+
+          <Accordion.Item value="pantalla-publica">
+            <Accordion.Control icon={<IconTrophy size={16} />}>
+              ¿Cómo comparto los resultados del sorteo con el público o la transmisión?
+            </Accordion.Control>
+            <Accordion.Panel>
+              <Text size="sm" mb="xs">
+                Cada sorteo genera una URL pública accesible sin necesidad de autenticación:
+              </Text>
+              <List size="sm" spacing="xs">
+                <List.Item>La URL pública tiene el formato: <Code>/s/:publicSlug</Code>.</List.Item>
+                <List.Item>Podés acceder a ella haciendo click en el ícono del ojo <IconTrophy size={14} style={{ verticalAlign: 'middle' }} /> desde el panel o la sala de sorteo.</List.Item>
+                <List.Item>La vista se actualiza de forma automática en tiempo real mediante <strong>Polling cada 5 segundos</strong> y eventos de sincronización instantánea.</List.Item>
+              </List>
+            </Accordion.Panel>
+          </Accordion.Item>
+
+          <Accordion.Item value="personalizacion-marca">
+            <Accordion.Control icon={<IconSettings size={16} />}>
+              ¿Cómo personalizo el logo, título y favicon de la vista pública?
+            </Accordion.Control>
+            <Accordion.Panel>
+              <List size="sm" spacing="xs">
+                <List.Item>Ingresá a la sección <strong>Configuración del Sistema</strong> en el menú lateral.</List.Item>
+                <List.Item>Cargá la imagen del <strong>Banner / Logo Institucional</strong> para el encabezado.</List.Item>
+                <List.Item>Definí el <strong>Título Público</strong> que se mostrará en el encabezado.</List.Item>
+                <List.Item>Subí un <strong>Favicon</strong> personalizado y el nombre de pestaña para los navegadores de los espectadores.</List.Item>
+              </List>
+            </Accordion.Panel>
+          </Accordion.Item>
+
+        </Accordion>
+      </Box>
+
+      {/* Sección 3: Seguridad y Accesos */}
+      <Box mb="xl">
+        <Title order={3} mb="md">3. Seguridad y Doble Factor (2FA)</Title>
+        <Accordion variant="separated" radius="md">
+
+          <Accordion.Item value="configurar-2fa">
+            <Accordion.Control icon={<IconLock size={16} />}>
+              ¿Cómo configuro mi autenticador 2FA por primera vez?
+            </Accordion.Control>
+            <Accordion.Panel>
               <Alert
                 icon={<IconShieldCheck size={16} />}
                 color="orange"
@@ -89,57 +173,31 @@ export function FaqsPage() {
                 radius="md"
               >
                 <Text size="sm">
-                  Alerta importante.
+                  La autenticación de doble factor es obligatoria para garantizar la integridad de los sorteos.
                 </Text>
               </Alert>
 
-              <Text size="sm" mb="sm">
-                Texto normal. Podés completarlo antes de empezar el listado
-              </Text>
-
-              <List size="sm" spacing="sm">
-                <List.Item>
-                  <Text size="sm" fw={500}>1. Abrí el popup de login</Text>
-                  <Code block mt={4}>
-                    {`window.open(\n  '${ssoUrl}/sso/login' +\n  '?client_id=TU_ID' +\n  '&redirect_uri=TU_URI' +\n  '&state=VALOR_ALEATORIO' +\n  '&theme=dark',   // o theme=light\n  'sso-login',\n  'width=500,height=420'\n)`}
-                  </Code>
-                </List.Item>
-                <List.Item>
-                  <Text size="sm" fw={500}>2. Escuchá el postMessage</Text>
-                  <Code block mt={4}>
-                    {`window.addEventListener('message', (event) => {\n  // Verificá siempre el origen\n  if (event.origin !== '${ssoUrl}') return;\n  const { code, state } = event.data;\n  // Verificá que state coincida con el que generaste\n  // Mandá el code a tu backend\n})`}
-                  </Code>
-                </List.Item>
+              <List size="sm" spacing="xs">
+                <List.Item>En tu primer inicio de sesión, la aplicación te mostrará un <strong>código QR</strong>.</List.Item>
+                <List.Item>Escanéalo utilizando <strong>Google Authenticator</strong>, <strong>Authy</strong> o la aplicación TOTP de tu preferencia.</List.Item>
+                <List.Item>Ingresá el código de 6 dígitos generado por la aplicación para confirmar la vinculación.</List.Item>
               </List>
-
-              <Alert color="blue" mt="md" radius="md">
-                <Text size="sm" fw={500} mb={4}>Otra alerta, pero no tan urgente.</Text>
-                <Text size="sm">Texto a recordar:</Text>
-                <List size="sm" mt={4} spacing={2}>
-                  <List.Item>Ítem 1</List.Item>
-                  <List.Item>Ítem 2</List.Item>
-                  <List.Item>Ítem 3</List.Item>
-                  <List.Item>Ítem 4</List.Item>
-                  <List.Item>Ítem 5</List.Item>
-                </List>
-              </Alert>
-
             </Accordion.Panel>
           </Accordion.Item>
 
-          {/* Pregunta 1.3, etc */}
-          <Accordion.Item value="urls-recomendadas">
-              <Accordion.Control icon={<IconServer size={16} />}>
-                Pregunta 1.3
-              </Accordion.Control>
-              <Accordion.Panel>
-                <List size="sm" spacing="xs">
-                  <List.Item>Te recomendamos cargar las siguientes URLs:</List.Item>
-                  <List.Item>Localhost backend <Code>http://localhost:3000 </Code> </List.Item>
-                  <List.Item>Localhost frontend (dev) <Code>https://localhost:5173</Code> </List.Item>
-                  <List.Item>Localhost frontend (build) <Code>http://localhost:4173</Code> </List.Item>
-                  <List.Item>URL que vas a usar para el SSO<Code>https://tu.app.com/callback</Code> </List.Item>
-                </List>
+          <Accordion.Item value="entorno-api">
+            <Accordion.Control icon={<IconServer size={16} />}>
+              Referencia de Endpoints API
+            </Accordion.Control>
+            <Accordion.Panel>
+              <Text size="sm" mb="xs">
+                La URL base configurada actualmente para el backend es: <Code>{apiBaseUrl}</Code>
+              </Text>
+              <List size="sm" spacing="xs">
+                <List.Item>Resultados Públicos: <Code>GET {apiBaseUrl}/public/:publicSlug</Code></List.Item>
+                <List.Item>Estado de Sorteo: <Code>GET {apiBaseUrl}/draw/:raffleId/state</Code></List.Item>
+                <List.Item>Documentación Swagger: <Code>{apiBaseUrl}/api/docs</Code></List.Item>
+              </List>
             </Accordion.Panel>
           </Accordion.Item>
 
