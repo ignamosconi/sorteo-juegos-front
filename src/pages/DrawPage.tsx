@@ -705,7 +705,7 @@ export function DrawPage() {
                   ← Volver a deportes
                 </Button>
                 <Text fw={700} ta="center" size="lg">
-                  Seleccioná Categoría — {selectedSport?.name}
+                  Seleccioná Categoría - {selectedSport?.name}
                 </Text>
                 <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   {(sportsWithCategories.get(selectedSport?.id ?? '') ?? []).map((cat) => {
@@ -986,7 +986,7 @@ export function DrawPage() {
           <Box w="100%">
             <Group justify="space-between" mb={6}>
               <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                Estado Actual — {selectedGroup?.name}
+                Estado Actual - {selectedGroup?.name}
               </Text>
               <Text size="xs" c="dimmed">
                 {groupResults.length}/{selectedGroup?.capacity ?? 0} ocupados
@@ -1029,7 +1029,7 @@ export function DrawPage() {
                               </Text>
                             </Group>
                           ) : (
-                            <Text size="sm" c="dimmed" fs="italic">— Vacío —</Text>
+                            <Text size="sm" c="dimmed" fs="italic">- Vacío -</Text>
                           )}
                         </Table.Td>
                       </Table.Tr>
