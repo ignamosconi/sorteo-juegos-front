@@ -28,7 +28,7 @@ const notifyPublicUpdate = () => {
   }
 };
 
-// ── Visor Cilindro Tragaperras 3D Continuo ──────────────────────────────────
+// ── Visor Cilindro Tragaperras 3D Continuo (Supersampling 2X) ───────────────
 interface Cylinder3DProps<T> {
   items: T[];
   spinning: boolean;
@@ -50,7 +50,6 @@ function Cylinder3D<T>({
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lockedTriggeredRef = useRef(false);
 
-  // Mantenemos la referencia de callback aislada para evitar ciclos de renderizado
   const onLockedInRef = useRef(onLockedIn);
   useEffect(() => {
     onLockedInRef.current = onLockedIn;
@@ -61,7 +60,9 @@ function Cylinder3D<T>({
 
   const faceCount = Math.max(14, items.length > 0 ? Math.ceil(14 / items.length) * items.length : 14);
   const faceAngle = 360 / faceCount;
-  const itemHeight = 48;
+  
+  // Geometría escalada a 2X para Supersampling (HD)
+  const itemHeight = 96; // 48 * 2
   const radius = Math.round((itemHeight / 2) / Math.tan(Math.PI / faceCount));
 
   const extendedItems: T[] = [];
@@ -71,13 +72,6 @@ function Cylinder3D<T>({
     }
   }
   const finalItems = extendedItems.slice(0, faceCount);
-
-  useEffect(() => {
-    if (!spinning && targetIndex === null) {
-      angleRef.current = Math.round(angleRef.current / faceAngle) * faceAngle;
-      setDisplayAngle(angleRef.current);
-    }
-  }, [items, spinning, targetIndex, faceAngle]);
 
   useEffect(() => {
     setIsLocked(false);
@@ -106,8 +100,8 @@ function Cylinder3D<T>({
           speedRef.current = Math.max(remaining * 0.045, 0.3);
           angleRef.current += speedRef.current;
         } else {
-          angleRef.current = targetAngle;
-          setDisplayAngle(targetAngle);
+          angleRef.current = targetAngle % 360;
+          setDisplayAngle(angleRef.current);
           setIsLocked(true);
 
           if (!lockedTriggeredRef.current) {
@@ -141,7 +135,7 @@ function Cylinder3D<T>({
         maxWidth: 400,
         height: 220,
         margin: '0 auto',
-        perspective: '900px',
+        perspective: '1600px',
         overflow: 'hidden',
         borderRadius: '16px',
         border: isLocked
@@ -156,8 +150,7 @@ function Cylinder3D<T>({
           : 'var(--mantine-shadow-md)',
         transition: 'border-color 300ms, box-shadow 300ms',
         background: 'light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-8))',
-        WebkitFontSmoothing: 'antialiased',
-        textRendering: 'optimizeLegibility',
+        isolation: 'isolate',
       }}
     >
       <Box
@@ -177,6 +170,7 @@ function Cylinder3D<T>({
         }}
       />
 
+      {/* Visor sin fondo translúcido para evitar el aplanado de la textura 3D */}
       <Box
         style={{
           position: 'absolute',
@@ -184,9 +178,10 @@ function Cylinder3D<T>({
           marginTop: -28,
           borderRadius: '10px',
           border: isLocked ? '2px solid var(--mantine-color-green-5)' : '2px solid var(--mantine-color-orange-5)',
-          background: isLocked ? 'rgba(40, 199, 111, 0.12)' : 'rgba(245, 167, 5, 0.08)',
           zIndex: 4, pointerEvents: 'none',
-          boxShadow: isLocked ? '0 0 15px rgba(40,199,111,0.5)' : 'none',
+          boxShadow: isLocked
+            ? '0 0 15px rgba(40,199,111,0.5), inset 0 0 12px rgba(40,199,111,0.15)'
+            : '0 0 15px rgba(245,167,5,0.4), inset 0 0 12px rgba(245,167,5,0.12)',
           animation: isLocked ? 'lockInGrip 450ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none',
         }}
       />
@@ -198,13 +193,18 @@ function Cylinder3D<T>({
         }
       `}</style>
 
+      {/* Escenario 3D a resolución 2X renderizado y reescalado a 0.5X */}
       <Box
         style={{
-          width: '100%',
-          height: '100%',
+          width: '200%',
+          height: '200%',
           position: 'absolute',
+          top: '-50%',
+          left: '-50%',
           transformStyle: 'preserve-3d',
-          transform: `rotateX(${displayAngle}deg)`,
+          transform: `scale(0.5) rotateX(${displayAngle}deg)`,
+          transformOrigin: 'center center',
+          willChange: 'transform',
         }}
       >
         {finalItems.map((item, idx) => {
@@ -224,17 +224,21 @@ function Cylinder3D<T>({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                WebkitFontSmoothing: 'antialiased',
+                textRendering: 'geometricPrecision',
               }}
             >
               <Paper
                 withBorder
-                radius="md"
-                p="xs"
+                radius="lg"
+                p="md"
                 w="100%"
                 style={{
                   background: 'light-dark(var(--mantine-color-white), var(--mantine-color-dark-6))',
                   textAlign: 'center',
                   boxShadow: 'var(--mantine-shadow-xs)',
+                  transform: 'scale(1.8)',
+                  transformOrigin: 'center center',
                 }}
               >
                 {renderItem(item)}
@@ -269,6 +273,9 @@ export function DrawPage() {
   const [targetIndex, setTargetIndex] = useState<number | null>(null);
   const [drawnTeam, setDrawnTeam] = useState<RaffleTeam | null>(null);
   const [drawnResult, setDrawnResult] = useState<DrawResult | null>(null);
+
+  // Cerrojo de seguridad para evitar sorteos duplicados en categorías con 1 solo grupo
+  const isAutoDrawingGroupRef = useRef(false);
 
   const [teamModalOpened, { open: openTeamModal, close: closeTeamModal }] = useDisclosure(false);
   const [resultModalOpened, { open: openResultModal, close: closeResultModal }] = useDisclosure(false);
@@ -339,6 +346,15 @@ export function DrawPage() {
 
   const isCategoryFinished = drawingStage === 'team' && remainingTeams.length === 0;
 
+  const isCategoryCompleted = useCallback((sportId: string, categoryId: string | null): boolean => {
+    if (!publicData) return false;
+    const sData = publicData.sports.find((s) => s.sport.id === sportId);
+    if (!sData) return false;
+    const section = sData.sections.find((sec) => (sec.category?.id ?? null) === categoryId);
+    if (!section || section.groups.length === 0) return false;
+    return section.groups.every((g) => g.results.length >= g.capacity);
+  }, [publicData]);
+
   const isSportCompleted = useCallback((sportId: string): boolean => {
     if (!publicData) return false;
     const sData = publicData.sports.find((s) => s.sport.id === sportId);
@@ -391,6 +407,7 @@ export function DrawPage() {
 
   const handleDrawTeam = async () => {
     if (spinning || isProcessing) return;
+    isAutoDrawingGroupRef.current = false;
     handleStartSpin();
     try {
       const res = await drawApi.drawTeam(raffle!.id);
@@ -412,6 +429,9 @@ export function DrawPage() {
     setIsProcessing(false);
 
     if (hasSingleGroupInCategory) {
+      if (isAutoDrawingGroupRef.current) return;
+      isAutoDrawingGroupRef.current = true;
+
       try {
         const res = await drawApi.drawGroup(raffle!.id);
         setDrawnResult(res.result);
@@ -421,6 +441,7 @@ export function DrawPage() {
         void refreshPublicData();
         openResultModal();
       } catch (err: any) {
+        isAutoDrawingGroupRef.current = false;
         notifications.show({
           message: err?.response?.data?.message || 'Error al asignar grupo',
           color: 'red',
@@ -611,24 +632,43 @@ export function DrawPage() {
                   Seleccioná Categoría — {selectedSport?.name}
                 </Text>
                 <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                  {(sportsWithCategories.get(selectedSport?.id ?? '') ?? []).map((cat) => (
-                    <Card
-                      key={cat.id}
-                      withBorder
-                      radius="md"
-                      p="lg"
-                      style={{
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minHeight: 80,
-                      }}
-                      onClick={() => void handleSelectCategory(cat)}
-                    >
-                      <Text fw={700} ta="center">{cat.name}</Text>
-                    </Card>
-                  ))}
+                  {(sportsWithCategories.get(selectedSport?.id ?? '') ?? []).map((cat) => {
+                    const completed = isCategoryCompleted(selectedSport!.id, cat.id);
+                    return (
+                      <Card
+                        key={cat.id}
+                        withBorder
+                        radius="md"
+                        p="lg"
+                        style={{
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minHeight: 100,
+                          borderColor: completed ? 'var(--mantine-color-green-5)' : undefined,
+                          background: completed
+                            ? 'light-dark(rgba(40, 199, 111, 0.08), rgba(40, 199, 111, 0.15))'
+                            : undefined,
+                        }}
+                        onClick={() => void handleSelectCategory(cat)}
+                      >
+                        <Stack gap={6} align="center" justify="center" w="100%">
+                          <Text fw={700} ta="center">{cat.name}</Text>
+                          {completed && (
+                            <Badge
+                              color="green"
+                              variant="light"
+                              size="sm"
+                              leftSection={<IconCheck size={12} />}
+                            >
+                              Sorteo Finalizado
+                            </Badge>
+                          )}
+                        </Stack>
+                      </Card>
+                    );
+                  })}
                 </SimpleGrid>
               </Stack>
             </Card>
@@ -925,7 +965,7 @@ export function DrawPage() {
             mt="xs"
             onClick={handleNextTeamDraw}
           >
-            Sortear siguiente equipo
+            {remainingTeams.length === 0 ? 'Finalizar sorteo' : 'Sortear siguiente equipo'}
           </Button>
         </Stack>
       </Modal>
