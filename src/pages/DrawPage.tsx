@@ -8,6 +8,7 @@ import { useDisclosure } from '@mantine/hooks';
 import {
   IconArrowLeft, IconArrowBackUp, IconEye, IconTrophy,
   IconShield, IconSparkles, IconPlayerPlay, IconCheck,
+  IconCaretRightFilled, IconCaretLeftFilled,
 } from '@tabler/icons-react';
 import { drawApi } from '@/api/drawApi';
 import { sportApi } from '@/api/sportApi';
@@ -153,6 +154,7 @@ function Cylinder3D<T>({
         isolation: 'isolate',
       }}
     >
+      {/* Sombras superior e inferior */}
       <Box
         style={{
           position: 'absolute',
@@ -170,26 +172,77 @@ function Cylinder3D<T>({
         }}
       />
 
-      {/* Visor sin fondo translúcido para evitar el aplanado de la textura 3D */}
+      {/* Flecha Izquierda */}
       <Box
         style={{
           position: 'absolute',
-          top: '50%', left: 12, right: 12, height: 56,
-          marginTop: -28,
-          borderRadius: '10px',
-          border: isLocked ? '2px solid var(--mantine-color-green-5)' : '2px solid var(--mantine-color-orange-5)',
-          zIndex: 4, pointerEvents: 'none',
-          boxShadow: isLocked
-            ? '0 0 15px rgba(40,199,111,0.5), inset 0 0 12px rgba(40,199,111,0.15)'
-            : '0 0 15px rgba(245,167,5,0.4), inset 0 0 12px rgba(245,167,5,0.12)',
-          animation: isLocked ? 'lockInGrip 450ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none',
+          left: 6,
+          top: '50%',
+          marginTop: -16,
+          zIndex: 6,
+          pointerEvents: 'none',
+          color: isLocked
+            ? 'var(--mantine-color-green-5)'
+            : spinning
+            ? 'var(--mantine-color-orange-5)'
+            : 'var(--mantine-color-gray-5)',
+          transition: 'color 300ms',
+          animation: isLocked ? 'arrowPop 350ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none',
         }}
-      />
+      >
+        <IconCaretRightFilled size={32} />
+      </Box>
+
+      {/* Flecha Derecha */}
+      <Box
+        style={{
+          position: 'absolute',
+          right: 6,
+          top: '50%',
+          marginTop: -16,
+          zIndex: 6,
+          pointerEvents: 'none',
+          color: isLocked
+            ? 'var(--mantine-color-green-5)'
+            : spinning
+            ? 'var(--mantine-color-orange-5)'
+            : 'var(--mantine-color-gray-5)',
+          transition: 'color 300ms',
+          animation: isLocked ? 'arrowPop 350ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none',
+        }}
+      >
+        <IconCaretLeftFilled size={32} />
+      </Box>
+
+      {/* Recuadro del Ganador (Aparece únicamente cuando isLocked es true) */}
+      {isLocked && (
+        <Box
+          style={{
+            position: 'absolute',
+            top: '50%', left: 0, right: 0, height: 56,
+            marginTop: -28,
+            borderTop: '2px solid var(--mantine-color-green-5)',
+            borderBottom: '2px solid var(--mantine-color-green-5)',
+            borderLeft: 'none',
+            borderRight: 'none',
+            background: 'rgba(40, 199, 111, 0.12)',
+            zIndex: 4, pointerEvents: 'none',
+            boxShadow: '0 0 15px rgba(40,199,111,0.5), inset 0 0 12px rgba(40,199,111,0.15)',
+            animation: 'framePopIn 350ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+          }}
+        />
+      )}
+
       <style>{`
-        @keyframes lockInGrip {
-          0% { transform: scale(1.08); }
-          50% { transform: scale(0.95); }
-          100% { transform: scale(1.0); }
+        @keyframes arrowPop {
+          0% { transform: scale(0.7); }
+          50% { transform: scale(1.35); }
+          100% { transform: scale(1.1); }
+        }
+        @keyframes framePopIn {
+          0% { transform: scaleY(0); opacity: 0; }
+          60% { transform: scaleY(1.1); opacity: 0.9; }
+          100% { transform: scaleY(1); opacity: 1; }
         }
       `}</style>
 
@@ -229,16 +282,21 @@ function Cylinder3D<T>({
               }}
             >
               <Paper
-                withBorder
-                radius="lg"
-                p="md"
+                radius="md"
+                p="xs"
                 w="100%"
+                h="100%"
                 style={{
                   background: 'light-dark(var(--mantine-color-white), var(--mantine-color-dark-6))',
                   textAlign: 'center',
                   boxShadow: 'var(--mantine-shadow-xs)',
-                  transform: 'scale(1.8)',
-                  transformOrigin: 'center center',
+                  borderLeft: '1px solid var(--mantine-color-default-border)',
+                  borderRight: '1px solid var(--mantine-color-default-border)',
+                  borderBottom: '1px solid var(--mantine-color-default-border)',
+                  borderTop: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 {renderItem(item)}
@@ -730,16 +788,16 @@ export function DrawPage() {
                         targetIndex={targetIndex}
                         onLockedIn={() => void handleTeamLockedIn()}
                         renderItem={(team) => (
-                          <Group justify="center" gap="sm" wrap="nowrap">
+                          <Group justify="center" gap="lg" wrap="nowrap">
                             {team.imagePath && (
                               <Image
                                 src={getImageUrl(team.imagePath)}
-                                h={24}
-                                w={24}
+                                h={72}
+                                w={72}
                                 fit="contain"
                               />
                             )}
-                            <Text fw={800} size="md" style={{ whiteSpace: 'nowrap' }}>
+                            <Text fw={800} style={{ whiteSpace: 'nowrap', fontSize: '38px' }}>
                               {team.abbreviation}
                             </Text>
                           </Group>
@@ -752,7 +810,9 @@ export function DrawPage() {
                         targetIndex={targetIndex}
                         onLockedIn={() => void handleGroupLockedIn()}
                         renderItem={(group) => (
-                          <Text fw={800} size="lg">{group.name}</Text>
+                          <Text fw={800} style={{ fontSize: '48px' }}>
+                            {group.name}
+                          </Text>
                         )}
                       />
                     )}
