@@ -143,7 +143,9 @@ export function PublicRafflePage() {
               order={2}
               style={{
                 fontSize: 'clamp(1.1rem, 2.5vw, 1.8rem)',
-                whiteSpace: 'nowrap',
+                whiteSpace: 'normal',
+                wordBreak: 'break-word',
+                lineHeight: 1.2,
               }}
             >
               {config?.publicTitle || data.raffle.name}
