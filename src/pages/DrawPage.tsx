@@ -29,7 +29,7 @@ const notifyPublicUpdate = () => {
   }
 };
 
-// ── Visor Cilindro Tragaperras 3D Continuo (Supersampling 2X) ───────────────
+// ── Visor Cilindro Tragaperras 3D Continuo ─────────────────────────────────
 interface Cylinder3DProps<T> {
   items: T[];
   spinning: boolean;
@@ -59,20 +59,18 @@ function Cylinder3D<T>({
   const [displayAngle, setDisplayAngle] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
 
-  const faceCount = Math.max(14, items.length > 0 ? Math.ceil(14 / items.length) * items.length : 14);
+  const FACE_COUNT = 14;
+  const faceCount = FACE_COUNT;
   const faceAngle = 360 / faceCount;
   
-  // Geometría escalada a 2X para Supersampling (HD)
-  const itemHeight = 96; // 48 * 2
-  const radius = Math.round((itemHeight / 2) / Math.tan(Math.PI / faceCount));
+  // Geometría 1X nativa
+  const itemHeight = 48;
+  // Radio geométrico exacto sin redondeos para unión de caras perfecta
+  const radius = (itemHeight / 2) / Math.tan(Math.PI / faceCount);
 
-  const extendedItems: T[] = [];
-  if (items.length > 0) {
-    while (extendedItems.length < faceCount) {
-      extendedItems.push(...items);
-    }
-  }
-  const finalItems = extendedItems.slice(0, faceCount);
+  const finalItems: T[] = items.length > 0
+    ? Array.from({ length: faceCount }, (_, i) => items[i % items.length])
+    : [];
 
   useEffect(() => {
     setIsLocked(false);
@@ -130,13 +128,15 @@ function Cylinder3D<T>({
 
   return (
     <Box
+      className="cylinder-container-bg"
       style={{
         position: 'relative',
         width: '100%',
         maxWidth: 400,
         height: 220,
         margin: '0 auto',
-        perspective: '1600px',
+        perspective: '1200px',
+        WebkitPerspective: '1200px',
         overflow: 'hidden',
         borderRadius: '16px',
         border: isLocked
@@ -150,24 +150,55 @@ function Cylinder3D<T>({
           ? '0 0 25px rgba(245, 167, 5, 0.4)'
           : 'var(--mantine-shadow-md)',
         transition: 'border-color 300ms, box-shadow 300ms',
-        background: 'light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-8))',
         isolation: 'isolate',
       }}
     >
-      {/* Sombras superior e inferior */}
+      {/* Estilos CSS Nativos compatibles con Mobile WebKit */}
+      <style>{`
+        .cylinder-gradient-top {
+          background: linear-gradient(to bottom, var(--mantine-color-body) 0%, transparent 100%);
+        }
+        .cylinder-gradient-bottom {
+          background: linear-gradient(to top, var(--mantine-color-body) 0%, transparent 100%);
+        }
+        .cylinder-container-bg {
+          background: var(--mantine-color-gray-1);
+        }
+        [data-mantine-color-scheme="dark"] .cylinder-container-bg {
+          background: var(--mantine-color-dark-8);
+        }
+        .cylinder-card-bg {
+          background: var(--mantine-color-white);
+        }
+        [data-mantine-color-scheme="dark"] .cylinder-card-bg {
+          background: var(--mantine-color-dark-6);
+        }
+        @keyframes arrowPop {
+          0% { transform: scale(0.7); }
+          50% { transform: scale(1.35); }
+          100% { transform: scale(1.1); }
+        }
+        @keyframes framePopIn {
+          0% { transform: scaleY(0); opacity: 0; }
+          60% { transform: scaleY(1.1); opacity: 0.9; }
+          100% { transform: scaleY(1); opacity: 1; }
+        }
+      `}</style>
+
+      {/* Degradados de difusión superior e inferior */}
       <Box
+        className="cylinder-gradient-top"
         style={{
           position: 'absolute',
           top: 0, left: 0, right: 0, height: 70,
-          background: 'linear-gradient(to bottom, light-dark(rgba(240,240,240,0.98), rgba(20,20,20,0.98)), transparent)',
           zIndex: 5, pointerEvents: 'none',
         }}
       />
       <Box
+        className="cylinder-gradient-bottom"
         style={{
           position: 'absolute',
           bottom: 0, left: 0, right: 0, height: 70,
-          background: 'linear-gradient(to top, light-dark(rgba(240,240,240,0.98), rgba(20,20,20,0.98)), transparent)',
           zIndex: 5, pointerEvents: 'none',
         }}
       />
@@ -214,7 +245,7 @@ function Cylinder3D<T>({
         <IconCaretLeftFilled size={32} />
       </Box>
 
-      {/* Recuadro del Ganador (Aparece únicamente cuando isLocked es true) */}
+      {/* Recuadro del Ganador */}
       {isLocked && (
         <Box
           style={{
@@ -233,29 +264,17 @@ function Cylinder3D<T>({
         />
       )}
 
-      <style>{`
-        @keyframes arrowPop {
-          0% { transform: scale(0.7); }
-          50% { transform: scale(1.35); }
-          100% { transform: scale(1.1); }
-        }
-        @keyframes framePopIn {
-          0% { transform: scaleY(0); opacity: 0; }
-          60% { transform: scaleY(1.1); opacity: 0.9; }
-          100% { transform: scaleY(1); opacity: 1; }
-        }
-      `}</style>
-
-      {/* Escenario 3D a resolución 2X renderizado y reescalado a 0.5X */}
+      {/* Tambor 3D Nativo */}
       <Box
         style={{
-          width: '200%',
-          height: '200%',
+          width: '100%',
+          height: '100%',
           position: 'absolute',
-          top: '-50%',
-          left: '-50%',
+          top: 0,
+          left: 0,
+          WebkitTransformStyle: 'preserve-3d',
           transformStyle: 'preserve-3d',
-          transform: `scale(0.5) rotateX(${displayAngle}deg)`,
+          transform: `rotateX(${displayAngle}deg)`,
           transformOrigin: 'center center',
           willChange: 'transform',
         }}
@@ -272,24 +291,23 @@ function Cylinder3D<T>({
                 width: '90%',
                 height: itemHeight,
                 marginTop: -itemHeight / 2,
+                WebkitBackfaceVisibility: 'hidden',
                 backfaceVisibility: 'hidden',
                 transform: `rotateX(${itemAngle}deg) translateZ(${radius}px)`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                WebkitFontSmoothing: 'antialiased',
-                textRendering: 'geometricPrecision',
               }}
             >
               <Paper
-                radius="md"
+                className="cylinder-card-bg"
+                radius={0}
                 p="xs"
                 w="100%"
                 h="100%"
                 style={{
-                  background: 'light-dark(var(--mantine-color-white), var(--mantine-color-dark-6))',
                   textAlign: 'center',
-                  boxShadow: 'var(--mantine-shadow-xs)',
+                  boxShadow: 'none',
                   borderLeft: '1px solid var(--mantine-color-default-border)',
                   borderRight: '1px solid var(--mantine-color-default-border)',
                   borderBottom: '1px solid var(--mantine-color-default-border)',
@@ -789,18 +807,18 @@ export function DrawPage() {
                         onLockedIn={() => void handleTeamLockedIn()}
                         renderItem={(team) => (
                           <Box style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                            <Box style={{ display: 'flex', alignItems: 'center', gap: '20px', width: '195px' }}>
-                              <Box style={{ width: '80px', height: '72px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <Box style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '120px' }}>
+                              <Box style={{ width: '40px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                 {team.imagePath && (
                                   <Image
                                     src={getImageUrl(team.imagePath)}
-                                    h={72}
-                                    w={72}
+                                    h={36}
+                                    w={36}
                                     fit="contain"
                                   />
                                 )}
                               </Box>
-                              <Text fw={800} style={{ whiteSpace: 'nowrap', fontSize: '38px', textAlign: 'left' }}>
+                              <Text fw={800} style={{ whiteSpace: 'nowrap', fontSize: '20px', textAlign: 'left' }}>
                                 {team.abbreviation}
                               </Text>
                             </Box>
@@ -814,7 +832,7 @@ export function DrawPage() {
                         targetIndex={targetIndex}
                         onLockedIn={() => void handleGroupLockedIn()}
                         renderItem={(group) => (
-                          <Text fw={800} style={{ fontSize: '48px' }}>
+                          <Text fw={800} style={{ fontSize: '24px' }}>
                             {group.name}
                           </Text>
                         )}
