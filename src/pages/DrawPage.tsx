@@ -436,8 +436,15 @@ export function DrawPage() {
   const [displayTeams, setDisplayTeams] = useState<RaffleTeam[]>([]);
   const [displayGroups, setDisplayGroups] = useState<SportCategoryGroup[]>([]);
 
-  useEffect(() => { setDisplayTeams([...remainingTeams]); }, [remainingTeams]);
-  useEffect(() => { setDisplayGroups([...remainingGroups]); }, [remainingGroups]);
+  useEffect(() => {
+    const t = setTimeout(() => setDisplayTeams([...remainingTeams]), 450);
+    return () => clearTimeout(t);
+  }, [remainingTeams]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDisplayGroups([...remainingGroups]), 450);
+    return () => clearTimeout(t);
+  }, [remainingGroups]);
 
   const isCategoryFinished = drawingStage === 'team' && remainingTeams.length === 0;
 
