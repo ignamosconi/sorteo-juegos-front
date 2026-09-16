@@ -832,7 +832,8 @@ export function DrawPage() {
                       <Text size="sm" c="dimmed" mt={4}>
                         {drawingStage === 'team'
                           ? `${remainingTeams.length} equipos en la bolsa`
-                          : `${remainingGroups.length} grupos con vacantes disponibles`}
+                          : `${remainingGroups.length} ${remainingGroups.length === 1 ? 'grupo' : 'grupos'} con vacantes disponibles`
+                        }
                       </Text>
                     </Box>
 
@@ -847,14 +848,10 @@ export function DrawPage() {
                           <Box style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                             <Box style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '120px' }}>
                               <Box style={{ width: '40px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                {team.imagePath && (
-                                  <Image
-                                    src={getImageUrl(team.imagePath)}
-                                    h={36}
-                                    w={36}
-                                    fit="contain"
-                                  />
-                                )}
+                                {team.imagePath
+                                  ? <Image src={getImageUrl(team.imagePath)} h={36} w={36} fit="contain" />
+                                  : <IconShield size={28} color="var(--mantine-color-gray-4)" />
+                                }
                               </Box>
                               <Text fw={800} style={{ whiteSpace: 'nowrap', fontSize: '20px', textAlign: 'left' }}>
                                 {team.abbreviation}
@@ -1050,14 +1047,10 @@ export function DrawPage() {
                         <Table.Td>
                           {res ? (
                             <Group gap="xs" wrap="nowrap">
-                              {res.raffleTeam?.imagePath && (
-                                <Image
-                                  src={getImageUrl(res.raffleTeam.imagePath)}
-                                  h={20}
-                                  w={20}
-                                  fit="contain"
-                                />
-                              )}
+                              {res.raffleTeam?.imagePath
+                                ? <Image src={getImageUrl(res.raffleTeam.imagePath)} h={20} w={20} fit="contain" />
+                                : <IconShield size={16} color="var(--mantine-color-gray-4)" />
+                              }
                               <Text size="sm" fw={600} style={{ whiteSpace: 'nowrap' }}>
                                 {res.raffleTeam?.name} ({res.raffleTeam?.abbreviation})
                               </Text>

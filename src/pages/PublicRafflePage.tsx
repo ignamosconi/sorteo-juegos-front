@@ -4,7 +4,7 @@ import {
   Box, Title, Text, Button, Card, Grid, Stack, Badge,
   Loader, Center, Group, Image, Table, SimpleGrid, Paper,
 } from '@mantine/core';
-import { IconPlayerPlay, IconTrophy, IconCheck } from '@tabler/icons-react';
+import { IconPlayerPlay, IconTrophy, IconCheck, IconShield } from '@tabler/icons-react';
 import { drawApi } from '@/api/drawApi';
 import { useAuthStore } from '@/store/authStore';
 import { systemConfigApi } from '@/api/systemConfigApi';
@@ -203,7 +203,7 @@ export function PublicRafflePage() {
                     <Stack gap={6} align="center" justify="center" w="100%">
                       <Text fw={800} size="xl" ta="center">{s.sport.name.toUpperCase()}</Text>
                       <Text size="xs" c="dimmed" ta="center">
-                        {s.hasCategories ? `${s.sections.length} categorías` : 'Categoría General'}
+                        {s.hasCategories ? `${s.sections.length} ${s.sections.length === 1 ? 'categoría' : 'categorías'}` : 'Categoría General'}
                       </Text>
                       {completed && (
                         <Badge
@@ -315,9 +315,10 @@ export function PublicRafflePage() {
                                 </Table.Td>
                                 <Table.Td>
                                   <Group gap="xs" wrap="nowrap" align="center">
-                                    {r.raffleTeam.imagePath && (
-                                      <Image src={getImageUrl(r.raffleTeam.imagePath)} w={20} h={20} fit="contain" style={{ flexShrink: 0 }} />
-                                    )}
+                                      {r.raffleTeam.imagePath
+                                        ? <Image src={getImageUrl(r.raffleTeam.imagePath)} w={20} h={20} fit="contain" style={{ flexShrink: 0 }} />
+                                        : <IconShield size={16} color="var(--mantine-color-gray-4)" style={{ flexShrink: 0 }} />
+                                      }
                                     <Text size="sm" fw={600} style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
                                       {r.raffleTeam.abbreviation} - {r.raffleTeam.name}
                                     </Text>
