@@ -63,6 +63,7 @@ function Cylinder3D<T>({
   const [displayAngle, setDisplayAngle] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
 
+
   const FACE_COUNT = 14;
   const faceCount = FACE_COUNT;
   const faceAngle = 360 / faceCount;
@@ -432,6 +433,12 @@ export function DrawPage() {
   const remainingTeams = (fullState?.remainingTeams ?? []) as RaffleTeam[];
   const remainingGroups = (fullState?.remainingGroups ?? []) as SportCategoryGroup[];
 
+  const [displayTeams, setDisplayTeams] = useState<RaffleTeam[]>([]);
+  const [displayGroups, setDisplayGroups] = useState<SportCategoryGroup[]>([]);
+
+  useEffect(() => { setDisplayTeams([...remainingTeams]); }, [remainingTeams]);
+  useEffect(() => { setDisplayGroups([...remainingGroups]); }, [remainingGroups]);
+
   const isCategoryFinished = drawingStage === 'team' && remainingTeams.length === 0;
 
   const isCategoryCompleted = useCallback((sportId: string, categoryId: string | null): boolean => {
@@ -506,15 +513,29 @@ export function DrawPage() {
     setTargetIndex(null);
   };
 
+  const CYLINDER_FACE_COUNT = 14; // debe coincidir con Cylinder3D
+
   const handleDrawTeam = async () => {
     if (spinning || isProcessing) return;
     isAutoDrawingGroupRef.current = false;
     handleStartSpin();
     try {
       const res = await drawApi.drawTeam(raffle!.id);
-      const idx = remainingTeams.findIndex((t) => t.id === res.team.id);
+
+      const winnerIdx = remainingTeams.findIndex((t) => t.id === res.team.id);
+      const newDisplay = [...remainingTeams];
+      let targetFace = winnerIdx >= 0 ? winnerIdx : 0;
+
+      // Si el ganador está fuera del rango visible del cilindro, lo movemos adentro
+      if (targetFace >= CYLINDER_FACE_COUNT) {
+        const slot = targetFace % CYLINDER_FACE_COUNT;
+        [newDisplay[targetFace], newDisplay[slot]] = [newDisplay[slot], newDisplay[targetFace]];
+        targetFace = slot;
+      }
+
+      setDisplayTeams(newDisplay); // ← se actualiza junto con targetIndex (React 18 batch)
       setDrawnTeam(res.team);
-      setTargetIndex(idx >= 0 ? idx : 0);
+      setTargetIndex(targetFace);
     } catch (err: any) {
       setSpinning(false);
       setIsProcessing(false);
@@ -565,9 +586,20 @@ export function DrawPage() {
     handleStartSpin();
     try {
       const res = await drawApi.drawGroup(raffle!.id);
-      const idx = remainingGroups.findIndex((g) => g.id === res.result.sportCategoryGroupId);
+
+      const winnerIdx = remainingGroups.findIndex((g) => g.id === res.result.sportCategoryGroupId);
+      const newDisplay = [...remainingGroups];
+      let targetFace = winnerIdx >= 0 ? winnerIdx : 0;
+
+      if (targetFace >= CYLINDER_FACE_COUNT) {
+        const slot = targetFace % CYLINDER_FACE_COUNT;
+        [newDisplay[targetFace], newDisplay[slot]] = [newDisplay[slot], newDisplay[targetFace]];
+        targetFace = slot;
+      }
+
+      setDisplayGroups(newDisplay);
       setDrawnResult(res.result);
-      setTargetIndex(idx >= 0 ? idx : 0);
+      setTargetIndex(targetFace);
     } catch (err: any) {
       setSpinning(false);
       setIsProcessing(false);
@@ -887,7 +919,7 @@ export function DrawPage() {
                     {/* VISOR CILINDRO 3D */}
                     {drawingStage === 'team' ? (
                       <Cylinder3D
-                        items={remainingTeams}
+                        items={displayTeams}
                         spinning={spinning}
                         targetIndex={targetIndex}
                         onLockedIn={() => void handleTeamLockedIn()}
@@ -909,7 +941,7 @@ export function DrawPage() {
                       />
                     ) : (
                       <Cylinder3D
-                        items={remainingGroups}
+                        items={displayGroups}
                         spinning={spinning}
                         targetIndex={targetIndex}
                         onLockedIn={() => void handleGroupLockedIn()}
