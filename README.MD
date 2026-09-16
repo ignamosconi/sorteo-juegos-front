@@ -1,81 +1,123 @@
-# Dashboard de Administrador con 2FA - Frontend
+# Sistema de Sorteos
 
+Panel de administración e interfaz de sorteo en vivo construida con **React 18**, **Vite**, **TypeScript** y **Mantine v7**.
+Si bien fue pensado para los Juegos Deportivos Tecnológicos, la aplicación fue planteada de forma genérica, lo que permite utilizarla en cualquier entorno.
 
-Panel de administración construido con **React + Vite + TypeScript** y componentes de **Mantine v9**.
+## Repositorios
+- **Front-end:** https://github.com/ignamosconi/sorteo-juegos-front
+- **Back-end:** https://github.com/ignamosconi/sorteo-juegos-back
 
-## Backend
-El back-end de este proyecto puede encontrarse a través del siguiente enlace:
-- https://github.com/ignamosconi/admin-dashboard-2fa-back
+---
 
-## Funcionalidades principales
+## Funcionalidades Principales
 
-- **Login con flujo 2FA completo** - Primera vez: ingreso de credenciales → escaneo de QR → confirmación de código TOTP. Logins posteriores: credenciales → código TOTP. Todo manejado en una sola página con pasos progresivos.
-- **Gestión de administradores** - Tabla con listado de admins, creación, edición y eliminación con confirmación.
-- **Mi perfil** - El admin autenticado puede actualizar su nombre de usuario y contraseña, y resetear su autenticador 2FA confirmando su contraseña actual.
-- **Navbar colapsable**
-  - En **desktop**: ocupa espacio en el layout (push). Se expande (220px) o colapsa (60px) arrastrando o tocando el borde derecho.
-  - En **mobile**: no desplaza el contenido. Al abrirse se superpone con un backdrop semitransparente; tocando fuera del navbar se cierra.
-  - Colapsado muestra solo íconos con tooltips al hover. Expandido muestra íconos y etiquetas.
-  - En pantallas pequeñas arranca colapsado; en desktop arranca expandido.
-- **Modo claro / oscuro** - Toggle persistente accesible desde el pie del navbar en cualquier estado.
-- **Rutas protegidas** - Las páginas del panel requieren sesión activa. Sin token válido redirige al login automáticamente.
-- **Renovación automática de tokens** - El cliente renueva el access token usando el refresh token de forma transparente antes de que expire.
+- **Visor Cilindro 3D de Sorteo en Vivo (`/sortear/:drawSlug`)**
+  - Animación continua tipo tragaperras/ruleta 3D para el sorteo de equipos y grupos.
+  - Selección de contexto por Deporte y Categoría.
+  - Sorteo automático para categorías de grupo único.
+  - Reversión instantánea (*Undo*) contextual por disciplina.
+  - Modales informativos de confirmación y estado de grupos.
 
-## Stack
+- **Tablas Públicas en Tiempo Real (`/s/:publicSlug`)**
+  - Vista pública orientada a espectadores, transmisiones o pantallas gigantes.
+  - Actualización automática mediante **Polling (5s)** e integración con **BroadcastChannel** y eventos personalizados.
+  - Tablas intercaladas (*striped*) visibles y legibles tanto en Modo Claro como Modo Oscuro.
+  - Organización por tarjetas de Deporte y Categoría con indicación de "Sorteo Finalizado".
 
-| Tecnología | Uso |
+- **Gestión de Sorteos y Torneos**
+  - Configuración completa de sorteos, asignación de deportes, categorías, grupos y capacidad.
+  - Carga e importación de equipos participantes desde el catálogo global.
+
+- **Catálogos Maestros**
+  - Administración de Deportes y Categorías por defecto.
+  - Gestión de Equipos Globales (escudos, nombres y abreviaturas).
+
+- **Personalización de Marca y Apariencia (`/configuracion`)**
+  - Carga de logo/banner público, favicon dinámico y título de la pestaña del navegador.
+
+- **Autenticación de Administradores con 2FA**
+  - Flujo de inicio de sesión seguro con escaneo de código QR y validación TOTP.
+  - Gestión de perfil de administrador y reseteo de autenticador 2FA.
+
+---
+
+## Stack Tecnológico
+
+| Tecnología | Descripción |
 |---|---|
-| React 18 + Vite | Base del proyecto |
-| TypeScript | Tipado estático |
-| Mantine v9 | Componentes UI y theming |
-| React Router v6 | Navegación y rutas protegidas |
-| Zustand | Estado global de autenticación |
-| Axios | Cliente HTTP con interceptors |
-| `@mantine/hooks` | `useDisclosure`, `useMediaQuery` |
+| **React 18 + Vite** | Entorno de desarrollo rápido y biblioteca de UI |
+| **TypeScript** | Tipado estático estricto |
+| **Mantine v7** | Sistema de componentes UI, layout y theming |
+| **Tabler Icons (`@tabler/icons-react`)** | Iconografía vectorizada |
+| **React Router v6** | Enrutamiento cliente y rutas protegidas |
+| **Zustand** | Gestión del estado global de autenticación |
+| **Axios** | Cliente HTTP con interceptores para renovación automática de tokens |
 
-## Estructura
+---
+
+## Estructura del Proyecto
+
 
 ```
-src
- ├── api/            # Clientes HTTP (adminApi, authApi)
- ├── components/
- │    ├── layout/    # AppShell, Navbar, ProtectedRoute
- │    └── ui/        # ThemeToggle
- ├── hooks/          # useAuth
- ├── pages/          # LoginPage, AdminsPage, MyProfilePage, DashboardPage
- ├── store/          # authStore (Zustand)
- └── types/          # Tipos compartidos de la API
+
+src/
+┣ api/          # Clientes HTTP (drawApi, raffleApi, sportApi, adminApi, etc.)
+┣ components/   # Componentes reutilizables de UI y Layout (Navbar, ThemeToggle, ProtectedRoute)
+┣ config/       # Variables de entorno centralizadas
+┣ pages/        # Vistas principales (DrawPage, PublicRafflePage, RafflesPage, FaqsPage, etc.)
+┣ store/        # Estado global con Zustand (authStore)
+┣ types/        # Definición de interfaces TypeScript
+┗ utils/        # Funciones auxiliares y formateadores
+
 ```
 
-## Variables de entorno
+---
+
+## Variables de Entorno
 
 Copiá `.env.example` a `.env`:
 
 ```bash
 cp .env.example .env
+
 ```
 
-| Variable | Descripción |
-|---|---|
-| `VITE_API_URL` | URL base del backend (ej: `http://localhost:3000`) |
+```env
+VITE_API_BASE_URL=http://localhost:3000
+VITE_APP_NAME="Sorteo Juegos Universitarios"
 
-## Instalación y ejecución
+```
+
+---
+
+## Instalación y Comandos
 
 ```bash
+# Instalar dependencias
 npm install
-npm run dev    # desarrollo
 
-npm run build  # producción
-npm run preview #ejecutar build
+# Iniciar servidor de desarrollo
+npm run dev
+
+# Compilar para producción
+npm run build
+
+# Previsualizar el build de producción
+npm run preview
+
 ```
 
-## Páginas
+---
 
-| Ruta | Descripción |
-|---|---|
-| `/login` | Login con flujo 2FA (setup o validate según el estado del admin) |
-| `/dashboard` | Página de inicio del panel |
-| `/admins` | Listado y gestión de administradores |
-| `/admins/me` | Perfil del admin autenticado (datos + reset 2FA) |
+## Rutas Principales
 
-# SORTEOS
+| Ruta | Descripción | Acceso |
+| --- | --- | --- |
+| `/login` | Inicio de sesión con validación 2FA | Público |
+| `/s/:publicSlug` | Resultados públicos en tiempo real | Público |
+| `/sortear/:drawSlug` | Pantalla de ejecución del sorteo (Cilindro 3D) | Administrador |
+| `/raffles` | Listado y administración de sorteos | Administrador |
+| `/deportes-defecto` | Catálogo maestro de deportes | Administrador |
+| `/equipos-globales` | Catálogo maestro de equipos e insignias | Administrador |
+| `/configuracion` | Ajustes de marca, logo y favicon público | Administrador |
+| `/faqs` | Preguntas frecuentes para administradores | Administrador |
