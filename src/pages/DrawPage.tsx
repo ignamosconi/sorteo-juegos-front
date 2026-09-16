@@ -9,8 +9,7 @@ import { useDisclosure } from '@mantine/hooks';
 import {
   IconArrowLeft, IconArrowBackUp, IconEye,
   IconShield, IconCheck, IconCaretLeftFilled,
-  IconCaretRightFilled,
-  IconTrophy, 
+  IconCaretRightFilled, IconTrophy,
 } from '@tabler/icons-react';
 import { drawApi } from '@/api/drawApi';
 import { sportApi } from '@/api/sportApi';
@@ -158,7 +157,6 @@ function Cylinder3D<T>({
         isolation: 'isolate',
       }}
     >
-      {/* Estilos CSS Nativos compatibles con Mobile WebKit */}
       <style>{`
         .cylinder-gradient-top {
           background: linear-gradient(to bottom, var(--mantine-color-body) 0%, transparent 100%);
@@ -467,6 +465,17 @@ export function DrawPage() {
 
   const hasSingleGroupInCategory = getCategoryTotalGroupsCount() === 1;
 
+  // Evaluamos directamente contra publicData (fuente de verdad absoluta de resultados guardados)
+  // para saber si hay algo que deshacer específicamente en este combo Deporte/Categoría
+  const hasCurrentCategoryResults = (() => {
+    if (!selectedSport || !publicData) return false;
+    const sData = publicData.sports.find((s) => s.sport.id === selectedSport.id);
+    if (!sData) return false;
+    const targetCatId = selectedCategory?.id ?? null;
+    const section = sData.sections.find((sec) => (sec.category?.id ?? null) === targetCatId);
+    return section?.groups.some((g) => g.results.length > 0) ?? false;
+  })();
+
   const handleSelectSport = async (sport: Sport) => {
     const cats = sportsWithCategories.get(sport.id) ?? [];
     setSelectedSport(sport);
@@ -597,10 +606,19 @@ export function DrawPage() {
   const handleUndo = async () => {
     setUndoing(true);
     try {
-      if (selectedSport) {
-        await drawApi.selectContext(raffle!.id, selectedSport.id, selectedCategory?.id ?? undefined);
-      }
-      const newState = await drawApi.undo(raffle!.id);
+      // 1. Ahora TypeScript y Axios enviarán correctamente este body al backend
+      await drawApi.undo(raffle!.id, {
+        sportId: selectedSport?.id,
+        categoryId: selectedCategory?.id || null
+      });
+
+      // 2. FORZAMOS recargar el contexto desde 0 para esta categoría.
+      const newState = await drawApi.selectContext(
+        raffle!.id, 
+        selectedSport!.id, 
+        selectedCategory?.id ?? undefined
+      );
+
       setFullState(newState);
       setDrawnTeam(null);
       setDrawnResult(null);
@@ -608,12 +626,13 @@ export function DrawPage() {
       setSpinning(false);
       setIsProcessing(false);
       setDrawingStage('team');
+      
       notifyPublicUpdate();
       void refreshPublicData();
       closeUndo();
-      notifications.show({ message: 'Último sorteo deshecho', color: 'blue' });
-    } catch {
-      notifications.show({ message: 'Error al deshacer el sorteo', color: 'red' });
+      notifications.show({ message: 'Último sorteo de esta sección deshecho', color: 'blue' });
+    } catch (err: any) {
+      notifications.show({ message: err?.response?.data?.message || 'Error al deshacer el sorteo', color: 'red' });
     } finally {
       setUndoing(false);
     }
@@ -641,7 +660,7 @@ export function DrawPage() {
       >
         <Group justify="space-between" maw={1000} mx="auto" align="center" wrap="nowrap">
           
-          {/* Logo + Título (igual que public) */}
+          {/* Logo + Título */}
           <Group gap="xs" align="center" wrap="nowrap" style={{ minWidth: 0 }}>
             {config?.publicImagePath ? (
               <Image
@@ -930,7 +949,7 @@ export function DrawPage() {
                   </>
                 )}
 
-                {fullState?.results && fullState.results.length > 0 && (
+                {hasCurrentCategoryResults && (
                   <Button
                     variant="subtle"
                     color="red"
@@ -1110,7 +1129,9 @@ export function DrawPage() {
       {/* Modal Deshacer */}
       <Modal opened={undoOpened} onClose={closeUndo} title="Deshacer último sorteo" centered>
         <Stack>
-          <Text size="sm">¿Estás seguro que querés deshacer el último sorteo realizado?</Text>
+          <Text size="sm">
+            ¿Estás seguro que querés deshacer el último sorteo de <b>{selectedSport?.name}{selectedCategory ? ` (${selectedCategory.name})` : ''}</b>?
+          </Text>
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeUndo}>Cancelar</Button>
             <Button color="red" loading={undoing} onClick={() => void handleUndo()}>

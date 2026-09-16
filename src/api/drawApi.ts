@@ -19,8 +19,10 @@ export const drawApi = {
     apiClient.post<DrawTeamResponse>(`/draw/${raffleId}/draw-team`).then(r => r.data),
   drawGroup: (raffleId: string) =>
     apiClient.post<DrawGroupResponse>(`/draw/${raffleId}/draw-group`).then(r => r.data),
-  undo: (raffleId: string) =>
-    apiClient.post<FullDrawState>(`/draw/${raffleId}/undo`).then(r => r.data),
+  
+  undo: (raffleId: string, data?: { sportId?: string; categoryId?: string | null }) =>
+    apiClient.post<FullDrawState>(`/draw/${raffleId}/undo`, data).then(r => r.data),
+
   getByDrawSlug: (drawSlug: string) =>
     apiClient.get<Raffle>(`/draw/by-slug/${drawSlug}`).then(r => r.data),
   getPublicResults: (publicSlug: string) =>
