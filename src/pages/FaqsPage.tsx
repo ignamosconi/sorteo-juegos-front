@@ -3,7 +3,7 @@ import {
   ThemeIcon, List, Card, Alert, Badge,
 } from '@mantine/core';
 import {
-  IconBook, IconServer, IconPlus, IconCode,
+  IconBook, IconServer, IconPlus,
   IconShieldCheck, IconTrophy, IconPlayerPlay,
   IconRefresh, IconSettings, IconLock,
 } from '@tabler/icons-react';
