@@ -3,12 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box, Text, Button, Group, Stack, Card, Center, Loader,
   Modal, SimpleGrid, Badge, Title, Paper, Divider, Table, Image,
+  ActionIcon,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
-  IconArrowLeft, IconArrowBackUp, IconEye, IconTrophy,
-  IconShield, IconSparkles, IconPlayerPlay, IconCheck,
-  IconCaretRightFilled, IconCaretLeftFilled,
+  IconArrowLeft, IconArrowBackUp, IconEye,
+  IconShield, IconCheck, IconCaretLeftFilled,
+  IconCaretRightFilled,
+  IconTrophy, 
 } from '@tabler/icons-react';
 import { drawApi } from '@/api/drawApi';
 import { sportApi } from '@/api/sportApi';
@@ -16,9 +18,10 @@ import { notifications } from '@mantine/notifications';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { getImageUrl } from '@/utils/imageUrl';
 import type {
-  Raffle, Sport, SportCategory, FullDrawState, RaffleTeam,
+  Raffle, Sport, SportCategory, FullDrawState, RaffleTeam, SystemConfig,
   SportCategoryGroup, DrawResult, PublicResultsResponse,
 } from '@/types/api.types';
+import { systemConfigApi } from '@/api/systemConfigApi';
 
 const notifyPublicUpdate = () => {
   window.dispatchEvent(new CustomEvent('raffle_draw_updated'));
@@ -355,6 +358,7 @@ export function DrawPage() {
   const [targetIndex, setTargetIndex] = useState<number | null>(null);
   const [drawnTeam, setDrawnTeam] = useState<RaffleTeam | null>(null);
   const [drawnResult, setDrawnResult] = useState<DrawResult | null>(null);
+  const [config, setConfig] = useState<SystemConfig | null>(null);
 
   // Cerrojo de seguridad para evitar sorteos duplicados en categorías con 1 solo grupo
   const isAutoDrawingGroupRef = useRef(false);
@@ -369,10 +373,11 @@ export function DrawPage() {
     try {
       const r = await drawApi.getByDrawSlug(drawSlug);
       setRaffle(r);
-      const [sportsData, state, pubData] = await Promise.all([
+      const [sportsData, state, pubData, cfg] = await Promise.all([
         sportApi.getByRaffle(r.id),
         drawApi.getState(r.id),
         r.publicSlug ? drawApi.getPublicResults(r.publicSlug) : Promise.resolve(null),
+        systemConfigApi.getPublic(),
       ]);
       const catMap = new Map<string, SportCategory[]>();
       await Promise.all(
@@ -384,6 +389,7 @@ export function DrawPage() {
       setSports(sportsData);
       setSportsWithCategories(catMap);
       setFullState(state);
+      setConfig(cfg);
       if (pubData) setPublicData(pubData);
 
       if (state?.state?.currentSportId) {
@@ -618,40 +624,66 @@ export function DrawPage() {
     <Box mih="100dvh" style={{ background: 'var(--mantine-color-body)' }}>
       {/* Navbar Superior */}
       <Box
-        p="md"
+        px="md"
+        py="xs"
         style={{
           borderBottom: '1px solid var(--mantine-color-default-border)',
           position: 'sticky', top: 0,
           background: 'var(--mantine-color-body)', zIndex: 10,
         }}
       >
-        <Group justify="space-between" maw={1000} mx="auto">
-          <Group gap="xs">
-            <Button
-              size="xs"
-              variant="subtle"
-              leftSection={<IconArrowLeft size={14} />}
-              onClick={() => navigate('/raffles')}
+        <Group justify="space-between" maw={1000} mx="auto" align="center" wrap="nowrap">
+          
+          {/* Logo + Título (igual que public) */}
+          <Group gap="xs" align="center" wrap="nowrap" style={{ minWidth: 0 }}>
+            {config?.publicImagePath ? (
+              <Image
+                src={getImageUrl(config.publicImagePath)}
+                h={40}
+                w="auto"
+                fit="contain"
+                style={{ flexShrink: 0, display: 'block' }}
+              />
+            ) : (
+              <IconTrophy size={28} color="var(--mantine-color-orange-5)" style={{ flexShrink: 0 }} />
+            )}
+            <Title
+              order={4}
+              style={{
+                fontSize: 'clamp(0.95rem, 2vw, 1.2rem)',
+                whiteSpace: 'normal',
+                wordBreak: 'break-word',
+                lineHeight: 1.2,
+              }}
             >
-              Panel
-            </Button>
-            <Title order={4}>{raffle.name}</Title>
+              {raffle.name}
+            </Title>
           </Group>
 
-          <Group gap="xs">
+          {/* Botones icono-only a la derecha */}
+          <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
             <ThemeToggle />
             {raffle.publicSlug && (
-              <Button
-                size="xs"
-                variant="light"
+              <ActionIcon
+                variant="subtle"
                 color="orange"
-                leftSection={<IconEye size={14} />}
+                size="lg"
+                aria-label="Ver tablas públicas"
                 onClick={() => window.open(`/s/${raffle.publicSlug}`, '_blank')}
               >
-                Ver tablas públicas
-              </Button>
+                <IconEye size={18} />
+              </ActionIcon>
             )}
+            <ActionIcon
+              variant="subtle"
+              size="lg"
+              aria-label="Volver al panel"
+              onClick={() => navigate('/raffles')}
+            >
+              <IconArrowLeft size={18} />
+            </ActionIcon>
           </Group>
+
         </Group>
       </Box>
 
