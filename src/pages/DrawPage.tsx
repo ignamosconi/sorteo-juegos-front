@@ -688,6 +688,14 @@ export function DrawPage() {
 
           {/* Botones icono-only a la derecha */}
           <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
+            <ActionIcon
+              variant="subtle"
+              size="lg"
+              aria-label="Volver al panel"
+              onClick={() => navigate('/raffles')}
+            >
+              <IconArrowLeft size={18} />
+            </ActionIcon>
             <ThemeToggle />
             {raffle.publicSlug && (
               <ActionIcon
@@ -700,14 +708,6 @@ export function DrawPage() {
                 <IconEye size={18} />
               </ActionIcon>
             )}
-            <ActionIcon
-              variant="subtle"
-              size="lg"
-              aria-label="Volver al panel"
-              onClick={() => navigate('/raffles')}
-            >
-              <IconArrowLeft size={18} />
-            </ActionIcon>
           </Group>
 
         </Group>
