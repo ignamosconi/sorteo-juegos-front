@@ -83,7 +83,7 @@ function Cylinder3D<T>({
       if (spinning && targetIndex === null) {
         speedRef.current = Math.min(speedRef.current + 0.2, 3.8);
         angleRef.current = (angleRef.current + speedRef.current) % 360;
-      } else if (targetIndex !== null && items.length > 0) {
+      } else if (spinning && targetIndex !== null && items.length > 0) {
         const realTargetFace = targetIndex % faceCount;
         const targetFaceAngle = (360 - realTargetFace * faceAngle) % 360;
 
@@ -511,11 +511,11 @@ export function DrawPage() {
       try {
         const res = await drawApi.drawGroup(raffle!.id);
         setDrawnResult(res.result);
+        openResultModal();
         const newState = await drawApi.getState(raffle!.id);
         setFullState(newState);
         notifyPublicUpdate();
         void refreshPublicData();
-        openResultModal();
       } catch (err: any) {
         isAutoDrawingGroupRef.current = false;
         notifications.show({
