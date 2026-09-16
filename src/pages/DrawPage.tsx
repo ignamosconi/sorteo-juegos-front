@@ -183,6 +183,12 @@ function Cylinder3D<T>({
           60% { transform: scaleY(1.1); opacity: 0.9; }
           100% { transform: scaleY(1); opacity: 1; }
         }
+
+        .cylinder-card-bg * {
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          text-rendering: optimizeLegibility;
+        }
       `}</style>
 
       {/* Degradados de difusión superior e inferior */}
@@ -276,7 +282,7 @@ function Cylinder3D<T>({
           transformStyle: 'preserve-3d',
           transform: `rotateX(${displayAngle}deg)`,
           transformOrigin: 'center center',
-          willChange: 'transform',
+          willChange: spinning ? 'transform' : 'auto',
         }}
       >
         {finalItems.map((item, idx) => {
