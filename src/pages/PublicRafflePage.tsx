@@ -11,7 +11,11 @@ import { systemConfigApi } from '@/api/systemConfigApi';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { getImageUrl } from '@/utils/imageUrl';
 import { ENV } from '@/config/env';
-import type { SystemConfig, PublicResultsResponse, PublicResultsSport, PublicResultsSection } from '@/types/api.types';
+import type { SystemConfig, PublicResultsResponse } from '@/types/api.types';
+
+// Tipos derivados de PublicResultsResponse para evitar errores de importación
+type PublicResultsSport = PublicResultsResponse['sports'][number];
+type PublicResultsSection = PublicResultsSport['sections'][number];
 
 export function PublicRafflePage() {
   const { publicSlug } = useParams<{ publicSlug: string }>();
@@ -77,13 +81,13 @@ export function PublicRafflePage() {
 
   const isSectionCompleted = (sec: PublicResultsSection): boolean => {
     if (!sec.groups || sec.groups.length === 0) return false;
-    return sec.groups.every(g => g.results.length >= g.capacity);
+    return sec.groups.every((g) => g.results.length >= g.capacity);
   };
 
   const isSportCompleted = (sportData: PublicResultsSport): boolean => {
-    const allGroups = sportData.sections.flatMap(sec => sec.groups);
+    const allGroups = sportData.sections.flatMap((sec) => sec.groups);
     if (allGroups.length === 0) return false;
-    return allGroups.every(g => g.results.length >= g.capacity);
+    return allGroups.every((g) => g.results.length >= g.capacity);
   };
 
   if (loading) return <Center h="100dvh"><Loader color="orange" size="lg" /></Center>;
@@ -220,7 +224,7 @@ export function PublicRafflePage() {
             <Button variant="subtle" size="xs" onClick={() => { setSelectedSport(null); setSelectedCategory(null); }}>
               ← Volver a deportes
             </Button>
-            <Text fw={600} ta="center">Seleccioná una categoría — {currentSportData?.sport.name}</Text>
+            <Text fw={600} ta="center">Seleccioná una categoría - {currentSportData?.sport.name}</Text>
             <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
               {currentSportData?.sections.map(sec => {
                 const completed = isSectionCompleted(sec);
@@ -272,7 +276,7 @@ export function PublicRafflePage() {
               </Button>
               <Badge color="orange" variant="light" size="lg">
                 {currentSportData?.sport.name}
-                {currentSection?.category ? ` — ${currentSection.category.name}` : ''}
+                {currentSection?.category ? ` - ${currentSection.category.name}` : ''}
               </Badge>
             </Group>
 
@@ -281,7 +285,7 @@ export function PublicRafflePage() {
                 <Text c="dimmed">No hay grupos configurados todavía.</Text>
               </Paper>
             ) : (
-              <Grid spacing="md">
+              <Grid>
                 {currentSection.groups.map(group => {
                   const isFull = group.results.length >= group.capacity;
                   return (
@@ -322,7 +326,7 @@ export function PublicRafflePage() {
                             {Array.from({ length: Math.max(0, group.capacity - group.results.length) }).map((_, i) => (
                               <Table.Tr key={`empty-${i}`}>
                                 <Table.Td><Text size="xs" c="dimmed">{group.results.length + i + 1}</Text></Table.Td>
-                                <Table.Td><Text size="sm" c="dimmed" fs="italic">—</Text></Table.Td>
+                                <Table.Td><Text size="sm" c="dimmed" fs="italic">-</Text></Table.Td>
                               </Table.Tr>
                             ))}
                           </Table.Tbody>
