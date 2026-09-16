@@ -848,7 +848,6 @@ export function DrawPage() {
                           radius="md"
                           fullWidth
                           disabled={isProcessing}
-                          leftSection={<IconPlayerPlay size={20} />}
                           onClick={() => {
                             if (drawingStage === 'team') {
                               void handleDrawTeam();
@@ -857,7 +856,7 @@ export function DrawPage() {
                             }
                           }}
                         >
-                          Girar Cilindro
+                          ¡Sortear!
                         </Button>
                       ) : (
                         <Button size="xl" color="orange" radius="md" fullWidth loading>
@@ -895,7 +894,6 @@ export function DrawPage() {
         radius="lg"
       >
         <Stack align="center" gap="md" py="md">
-          <IconSparkles size={48} color="var(--mantine-color-orange-5)" />
           <Text size="sm" c="dimmed" tt="uppercase" fw={700} style={{ letterSpacing: '0.05em' }}>
             ¡Equipo Sorteado!
           </Text>
@@ -943,8 +941,6 @@ export function DrawPage() {
         radius="lg"
       >
         <Stack align="center" gap="md" py="sm">
-          <IconTrophy size={42} color="var(--mantine-color-green-5)" />
-
           {/* Información de la Facultad Sorteada */}
           <Paper withBorder p="md" radius="md" w="100%" ta="center">
             <Group justify="center" gap="sm">
