@@ -788,19 +788,23 @@ export function DrawPage() {
                         targetIndex={targetIndex}
                         onLockedIn={() => void handleTeamLockedIn()}
                         renderItem={(team) => (
-                          <Group justify="center" gap="lg" wrap="nowrap">
-                            {team.imagePath && (
-                              <Image
-                                src={getImageUrl(team.imagePath)}
-                                h={72}
-                                w={72}
-                                fit="contain"
-                              />
-                            )}
-                            <Text fw={800} style={{ whiteSpace: 'nowrap', fontSize: '38px' }}>
-                              {team.abbreviation}
-                            </Text>
-                          </Group>
+                          <Box style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                            <Box style={{ display: 'flex', alignItems: 'center', gap: '20px', width: '195px' }}>
+                              <Box style={{ width: '80px', height: '72px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                {team.imagePath && (
+                                  <Image
+                                    src={getImageUrl(team.imagePath)}
+                                    h={72}
+                                    w={72}
+                                    fit="contain"
+                                  />
+                                )}
+                              </Box>
+                              <Text fw={800} style={{ whiteSpace: 'nowrap', fontSize: '38px', textAlign: 'left' }}>
+                                {team.abbreviation}
+                              </Text>
+                            </Box>
+                          </Box>
                         )}
                       />
                     ) : (
