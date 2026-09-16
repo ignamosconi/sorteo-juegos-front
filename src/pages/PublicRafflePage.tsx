@@ -4,14 +4,14 @@ import {
   Box, Title, Text, Button, Card, Grid, Stack, Badge,
   Loader, Center, Group, Image, Table, SimpleGrid, Paper,
 } from '@mantine/core';
-import { IconPlayerPlay, IconTrophy } from '@tabler/icons-react';
+import { IconPlayerPlay, IconTrophy, IconCheck } from '@tabler/icons-react';
 import { drawApi } from '@/api/drawApi';
 import { useAuthStore } from '@/store/authStore';
 import { systemConfigApi } from '@/api/systemConfigApi';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { getImageUrl } from '@/utils/imageUrl';
 import { ENV } from '@/config/env';
-import type { SystemConfig, PublicResultsResponse } from '@/types/api.types';
+import type { SystemConfig, PublicResultsResponse, PublicResultsSport, PublicResultsSection } from '@/types/api.types';
 
 export function PublicRafflePage() {
   const { publicSlug } = useParams<{ publicSlug: string }>();
@@ -75,6 +75,17 @@ export function PublicRafflePage() {
     };
   }, [load]);
 
+  const isSectionCompleted = (sec: PublicResultsSection): boolean => {
+    if (!sec.groups || sec.groups.length === 0) return false;
+    return sec.groups.every(g => g.results.length >= g.capacity);
+  };
+
+  const isSportCompleted = (sportData: PublicResultsSport): boolean => {
+    const allGroups = sportData.sections.flatMap(sec => sec.groups);
+    if (allGroups.length === 0) return false;
+    return allGroups.every(g => g.results.length >= g.capacity);
+  };
+
   if (loading) return <Center h="100dvh"><Loader color="orange" size="lg" /></Center>;
   if (!data) return (
     <Center h="100dvh">
@@ -92,6 +103,16 @@ export function PublicRafflePage() {
 
   return (
     <Box mih="100dvh" style={{ background: 'var(--mantine-color-body)' }}>
+      {/* Estilos para renglones intercalados visibles en Modo Claro y Modo Oscuro */}
+      <style>{`
+        .public-table-striped tbody tr:nth-of-type(odd) {
+          background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+        }
+        .public-table-striped tbody tr:nth-of-type(even) {
+          background-color: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+        }
+      `}</style>
+
       {/* Header Banner */}
       <Box
         py="lg"
@@ -101,22 +122,31 @@ export function PublicRafflePage() {
           background: 'var(--mantine-color-body)',
         }}
       >
-        <Group justify="space-between" maw={1000} mx="auto" align="center">
-          <Group gap="sm">
+        <Group justify="space-between" maw={1000} mx="auto" align="center" wrap="nowrap">
+          <Group gap="xs" align="center" wrap="nowrap" style={{ minWidth: 0 }}>
             {config?.publicImagePath ? (
-              <Image src={getImageUrl(config.publicImagePath)} h={40} fit="contain" />
+              <Image
+                src={getImageUrl(config.publicImagePath)}
+                h={72}
+                w="auto"
+                fit="contain"
+                style={{ flexShrink: 0, display: 'block' }}
+              />
             ) : (
-              <IconTrophy size={32} color="var(--mantine-color-orange-5)" />
+              <IconTrophy size={32} color="var(--mantine-color-orange-5)" style={{ flexShrink: 0 }} />
             )}
-            <Box>
-              <Title order={2} style={{ fontSize: 'clamp(1.2rem, 3vw, 1.8rem)' }}>
-                {config?.publicTitle || data.raffle.name}
-              </Title>
-              <Text size="xs" c="dimmed">{data.raffle.name}</Text>
-            </Box>
+            <Title
+              order={2}
+              style={{
+                fontSize: 'clamp(1.1rem, 2.5vw, 1.8rem)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {config?.publicTitle || data.raffle.name}
+            </Title>
           </Group>
 
-          <Group gap="xs">
+          <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
             <ThemeToggle />
             {isLoggedIn && data.raffle.drawSlug && data.raffle.status === 'in_progress' && (
               <Button
@@ -138,26 +168,51 @@ export function PublicRafflePage() {
           <Stack gap="md">
             <Text fw={600} ta="center">Seleccioná un deporte para ver las tablas</Text>
             <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-              {data.sports.map(s => (
-                <Card
-                  key={s.sport.id}
-                  withBorder
-                  radius="md"
-                  p="lg"
-                  ta="center"
-                  style={{ cursor: 'pointer', transition: 'transform 150ms' }}
-                  onClick={() => {
-                    setSelectedSport(s.sport.id);
-                    if (s.hasCategories) setSelectedCategory(null);
-                    else setSelectedCategory('none');
-                  }}
-                >
-                  <Text fw={800} size="xl">{s.sport.name.toUpperCase()}</Text>
-                  <Text size="xs" c="dimmed" mt={4}>
-                    {s.hasCategories ? `${s.sections.length} categorías` : 'Categoría General'}
-                  </Text>
-                </Card>
-              ))}
+              {data.sports.map(s => {
+                const completed = isSportCompleted(s);
+                return (
+                  <Card
+                    key={s.sport.id}
+                    withBorder
+                    radius="md"
+                    p="lg"
+                    style={{
+                      cursor: 'pointer',
+                      transition: 'transform 150ms',
+                      borderColor: completed ? 'var(--mantine-color-green-5)' : undefined,
+                      background: completed
+                        ? 'light-dark(rgba(40, 199, 111, 0.08), rgba(40, 199, 111, 0.15))'
+                        : undefined,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: 110,
+                    }}
+                    onClick={() => {
+                      setSelectedSport(s.sport.id);
+                      if (s.hasCategories) setSelectedCategory(null);
+                      else setSelectedCategory('none');
+                    }}
+                  >
+                    <Stack gap={6} align="center" justify="center" w="100%">
+                      <Text fw={800} size="xl" ta="center">{s.sport.name.toUpperCase()}</Text>
+                      <Text size="xs" c="dimmed" ta="center">
+                        {s.hasCategories ? `${s.sections.length} categorías` : 'Categoría General'}
+                      </Text>
+                      {completed && (
+                        <Badge
+                          color="green"
+                          variant="light"
+                          size="sm"
+                          leftSection={<IconCheck size={12} />}
+                        >
+                          Sorteo Finalizado
+                        </Badge>
+                      )}
+                    </Stack>
+                  </Card>
+                );
+              })}
             </SimpleGrid>
           </Stack>
         ) : !selectedCategory ? (
@@ -167,19 +222,43 @@ export function PublicRafflePage() {
             </Button>
             <Text fw={600} ta="center">Seleccioná una categoría — {currentSportData?.sport.name}</Text>
             <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-              {currentSportData?.sections.map(sec => (
-                <Card
-                  key={sec.category?.id ?? 'none'}
-                  withBorder
-                  radius="md"
-                  p="lg"
-                  ta="center"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => setSelectedCategory(sec.category?.id ?? 'none')}
-                >
-                  <Text fw={700}>{sec.category?.name ?? 'General'}</Text>
-                </Card>
-              ))}
+              {currentSportData?.sections.map(sec => {
+                const completed = isSectionCompleted(sec);
+                return (
+                  <Card
+                    key={sec.category?.id ?? 'none'}
+                    withBorder
+                    radius="md"
+                    p="lg"
+                    style={{
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: 100,
+                      borderColor: completed ? 'var(--mantine-color-green-5)' : undefined,
+                      background: completed
+                        ? 'light-dark(rgba(40, 199, 111, 0.08), rgba(40, 199, 111, 0.15))'
+                        : undefined,
+                    }}
+                    onClick={() => setSelectedCategory(sec.category?.id ?? 'none')}
+                  >
+                    <Stack gap={6} align="center" justify="center" w="100%">
+                      <Text fw={700} ta="center">{sec.category?.name ?? 'General'}</Text>
+                      {completed && (
+                        <Badge
+                          color="green"
+                          variant="light"
+                          size="sm"
+                          leftSection={<IconCheck size={12} />}
+                        >
+                          Sorteo Finalizado
+                        </Badge>
+                      )}
+                    </Stack>
+                  </Card>
+                );
+              })}
             </SimpleGrid>
           </Stack>
         ) : (
@@ -215,7 +294,7 @@ export function PublicRafflePage() {
                           </Badge>
                         </Group>
 
-                        <Table striped withRowBorders={false} verticalSpacing={6}>
+                        <Table className="public-table-striped" withRowBorders={false} verticalSpacing={6}>
                           <Table.Thead>
                             <Table.Tr>
                               <Table.Th w={30}>#</Table.Th>
@@ -229,12 +308,12 @@ export function PublicRafflePage() {
                                   <Text size="xs" c="dimmed" fw={700}>{r.position}</Text>
                                 </Table.Td>
                                 <Table.Td>
-                                  <Group gap="xs" wrap="nowrap">
+                                  <Group gap="xs" wrap="nowrap" align="center">
                                     {r.raffleTeam.imagePath && (
-                                      <Image src={getImageUrl(r.raffleTeam.imagePath)} w={20} h={20} fit="contain" />
+                                      <Image src={getImageUrl(r.raffleTeam.imagePath)} w={20} h={20} fit="contain" style={{ flexShrink: 0 }} />
                                     )}
-                                    <Text size="sm" fw={600} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                      {r.raffleTeam.abbreviation}
+                                    <Text size="sm" fw={600} style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                                      {r.raffleTeam.abbreviation} - {r.raffleTeam.name}
                                     </Text>
                                   </Group>
                                 </Table.Td>
