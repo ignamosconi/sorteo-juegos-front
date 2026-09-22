@@ -16,6 +16,7 @@ import { sportApi } from '@/api/sportApi';
 import { notifications } from '@mantine/notifications';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { getImageUrl } from '@/utils/imageUrl';
+import { getSportCategoryStyle } from '@/utils/sportCategoryColor';
 import type {
   Raffle, Sport, SportCategory, FullDrawState, RaffleTeam, SystemConfig,
   SportCategoryGroup, DrawResult, PublicResultsResponse,
@@ -887,8 +888,8 @@ export function DrawPage() {
                   >
                     ← Cambiar deporte
                   </Button>
-                  <Badge color="orange" variant="light" size="lg">
-                    {selectedSport?.name} {selectedCategory ? `• ${selectedCategory.name}` : ''}
+                  <Badge color="orange" variant="light" size="xl" style={{ fontSize: '1rem', padding: '0.4rem 0.8rem', ...getSportCategoryStyle(selectedSport?.name ?? '', selectedCategory?.name ?? '') }}>
+                      {selectedSport?.name} {selectedCategory ? `• ${selectedCategory.name}` : ''}
                   </Badge>
                 </Group>
 
