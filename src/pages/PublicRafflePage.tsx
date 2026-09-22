@@ -10,8 +10,10 @@ import { useAuthStore } from '@/store/authStore';
 import { systemConfigApi } from '@/api/systemConfigApi';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { getImageUrl } from '@/utils/imageUrl';
+import { getSportCategoryStyle } from '@/utils/sportCategoryColor';
 import { ENV } from '@/config/env';
 import type { SystemConfig, PublicResultsResponse } from '@/types/api.types';
+
 
 // Tipos derivados de PublicResultsResponse para evitar errores de importación
 type PublicResultsSport = PublicResultsResponse['sports'][number];
@@ -293,7 +295,7 @@ export function PublicRafflePage() {
               }}>
                 ← Volver
               </Button>
-              <Badge color="orange" variant="light" size="xl" style={{ fontSize: '1.2rem', padding: '0.4rem 0.8rem' }}>
+              <Badge color="orange" variant="light" size="xl" style={{ fontSize: '1.2rem', padding: '0.4rem 0.8rem', ...getSportCategoryStyle(currentSportData?.sport.name ?? '', currentSection?.category?.name ?? '') }}>
                 {currentSportData?.sport.name}
                 {currentSection?.category ? ` - ${currentSection.category.name}` : ''}
               </Badge>
