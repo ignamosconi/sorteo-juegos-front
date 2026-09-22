@@ -11,11 +11,11 @@ import {
 import { useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
-import logoUtn from '@/assets/logo-utn.png';
 import { ENV } from '@/config/env';
 import { getImageUrl } from '@/utils/imageUrl';
 import type { SystemConfig } from '@/types/api.types';
 
+const logoUtn = '/logo-utn.png';
 const NAVBAR_EXPANDED = 220;
 const NAVBAR_COLLAPSED = 60;
 
