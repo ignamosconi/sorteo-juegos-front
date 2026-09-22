@@ -17,6 +17,13 @@ import type { SystemConfig, PublicResultsResponse } from '@/types/api.types';
 type PublicResultsSport = PublicResultsResponse['sports'][number];
 type PublicResultsSection = PublicResultsSport['sections'][number];
 
+function formatTeamName(abbreviation: string, name: string): string {
+  if (name.startsWith('Facultad Regional ')) {
+    return 'FR ' + name.slice('Facultad Regional '.length);
+  }
+  return `${abbreviation} - ${name}`;
+}
+
 function getGridCols(n: number): number {
   if (n <= 4) return n;
   if (n <= 6) return 3;
@@ -330,7 +337,7 @@ export function PublicRafflePage() {
                                         : <IconShield size={16} color="var(--mantine-color-gray-4)" style={{ flexShrink: 0 }} />
                                       }
                                     <Text size="sm" fw={600} style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
-                                      {r.raffleTeam.abbreviation} - {r.raffleTeam.name}
+                                      {formatTeamName(r.raffleTeam.abbreviation, r.raffleTeam.name)}
                                     </Text>
                                   </Group>
                                 </Table.Td>
