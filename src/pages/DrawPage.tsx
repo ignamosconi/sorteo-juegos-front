@@ -887,7 +887,7 @@ export function DrawPage() {
                   >
                     ← Cambiar deporte
                   </Button>
-                  <Badge color="orange" variant="light" size="lg">
+                  <Badge color="orange" variant="light" size="xl" style={{ fontSize: '1rem', padding: '0.4rem 0.8rem' }}>
                     {selectedSport?.name} {selectedCategory ? `• ${selectedCategory.name}` : ''}
                   </Badge>
                 </Group>
