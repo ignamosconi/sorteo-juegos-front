@@ -17,6 +17,12 @@ import type { SystemConfig, PublicResultsResponse } from '@/types/api.types';
 type PublicResultsSport = PublicResultsResponse['sports'][number];
 type PublicResultsSection = PublicResultsSport['sections'][number];
 
+function getGridCols(n: number): number {
+  if (n <= 4) return n;
+  if (n <= 6) return 3;
+  return 4;
+}
+
 export function PublicRafflePage() {
   const { publicSlug } = useParams<{ publicSlug: string }>();
   const navigate = useNavigate();
@@ -105,6 +111,10 @@ export function PublicRafflePage() {
     (s.category?.id ?? 'none') === (selectedCategory ?? 'none')
   );
 
+  const groupCount = currentSection?.groups?.length ?? 0;
+  const mdCols = getGridCols(groupCount);
+  const contentMaxWidth = selectedCategory !== null && mdCols >= 4 ? 1320 : 1000;
+
   return (
     <Box mih="100dvh" style={{ background: 'var(--mantine-color-body)' }}>
       {/* Estilos para renglones intercalados visibles en Modo Claro y Modo Oscuro */}
@@ -169,7 +179,7 @@ export function PublicRafflePage() {
       </Box>
 
       {/* Main Content */}
-      <Box p="md" maw={1000} mx="auto">
+      <Box p="md" maw={contentMaxWidth} mx="auto">
         {!selectedSport ? (
           <Stack gap="md">
             <Text fw={600} ta="center">Seleccioná un deporte para ver las tablas</Text>
@@ -291,7 +301,7 @@ export function PublicRafflePage() {
                 {currentSection.groups.map(group => {
                   const isFull = group.results.length >= group.capacity;
                   return (
-                    <Grid.Col key={group.id} span={{ base: 12, sm: 6, md: 4 }}>
+                    <Grid.Col key={group.id} span={{ base: 12, md: (12 / mdCols) }}>
                       <Card withBorder radius="md" p="md">
                         <Group justify="space-between" mb="xs">
                           <Text fw={700}>{group.name}</Text>
