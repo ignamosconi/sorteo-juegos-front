@@ -16,6 +16,7 @@ import { sportApi } from '@/api/sportApi';
 import { notifications } from '@mantine/notifications';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { getImageUrl } from '@/utils/imageUrl';
+import { getSportCategoryStyle } from '@/utils/sportCategoryColor';
 import type {
   Raffle, Sport, SportCategory, FullDrawState, RaffleTeam, SystemConfig,
   SportCategoryGroup, DrawResult, PublicResultsResponse,
@@ -887,8 +888,8 @@ export function DrawPage() {
                   >
                     ← Cambiar deporte
                   </Button>
-                  <Badge color="orange" variant="light" size="lg">
-                    {selectedSport?.name} {selectedCategory ? `• ${selectedCategory.name}` : ''}
+                  <Badge color="orange" variant="light" size="xl" style={{ fontSize: '1rem', padding: '0.4rem 0.8rem', ...getSportCategoryStyle(selectedSport?.name ?? '', selectedCategory?.name ?? '') }}>
+                      {selectedSport?.name} {selectedCategory ? `• ${selectedCategory.name}` : ''}
                   </Badge>
                 </Group>
 
@@ -913,12 +914,12 @@ export function DrawPage() {
                   <>
                     <Box ta="center">
                       <Title order={3}>
-                        {drawingStage === 'team' ? 'Sortear Equipo' : `Sortear Grupo para ${drawnTeam?.abbreviation}`}
+                        {drawingStage === 'team' ? 'Sortear Equipo' : `Sortear Zona para ${drawnTeam?.abbreviation}`}
                       </Title>
                       <Text size="sm" c="dimmed" mt={4}>
                         {drawingStage === 'team'
                           ? `${remainingTeams.length} equipos en la bolsa`
-                          : `${remainingGroups.length} ${remainingGroups.length === 1 ? 'grupo' : 'grupos'} con vacantes disponibles`
+                          : `${remainingGroups.length} ${remainingGroups.length === 1 ? 'zona' : 'zonas'} con vacantes disponibles`
                         }
                       </Text>
                     </Box>
@@ -981,7 +982,7 @@ export function DrawPage() {
                         </Button>
                       ) : (
                         <Button size="xl" color="orange" radius="md" fullWidth loading>
-                          Sorteando {drawingStage === 'team' ? 'equipo' : 'grupo'}...
+                          Sorteando {drawingStage === 'team' ? 'equipo' : 'zona'}...
                         </Button>
                       )}
                     </Group>
@@ -1047,7 +1048,7 @@ export function DrawPage() {
             mt="md"
             onClick={handlePrepareGroupDraw}
           >
-            Sortear Grupo
+            Sortear Zona
           </Button>
         </Stack>
       </Modal>
@@ -1085,7 +1086,7 @@ export function DrawPage() {
             <Divider my="sm" />
             <Group justify="center" gap="xl">
               <Box>
-                <Text size="xs" c="dimmed">Grupo</Text>
+                <Text size="xs" c="dimmed">Zona</Text>
                 <Text fw={900} size="lg" c="orange.5">
                   {selectedGroup?.name}
                 </Text>

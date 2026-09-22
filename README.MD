@@ -1,7 +1,7 @@
 # Sistema de Sorteos
 
 Panel de administración e interfaz de sorteo en vivo construida con **React 18**, **Vite**, **TypeScript** y **Mantine v7**.
-Si bien fue pensado para los Juegos Deportivos Tecnológicos, la aplicación fue planteada de forma genérica, lo que permite utilizarla en cualquier entorno.
+Si bien fue pensado para los Juegos Deportivos Tecnológicos, la aplicación fue planteada de forma genérica, lo que permite utilizarla en cualquier entorno. 
 
 ## Repositorios
 - **Front-end:** https://github.com/ignamosconi/sorteo-juegos-front
