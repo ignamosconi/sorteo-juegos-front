@@ -293,7 +293,7 @@ export function PublicRafflePage() {
               }}>
                 ← Volver
               </Button>
-              <Badge color="orange" variant="light" size="lg">
+              <Badge color="orange" variant="light" size="xl" style={{ fontSize: '1.2rem', padding: '0.4rem 0.8rem' }}>
                 {currentSportData?.sport.name}
                 {currentSection?.category ? ` - ${currentSection.category.name}` : ''}
               </Badge>
